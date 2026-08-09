@@ -6,6 +6,8 @@ export function registerServiceWorker() {
   const refused =
     !import.meta.env.PROD ||
     window.self !== window.top ||
+    // داخل تطبيق أندرويد (Capacitor) لا يوجد عامل خدمة — التطبيق يعمل محليًا أصلًا
+    "Capacitor" in window ||
     host.startsWith("id-preview--") ||
     host.startsWith("preview--") ||
     host === "lovableproject.com" ||
