@@ -7,18 +7,11 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { VitePWA } from "vite-plugin-pwa";
 
-// بناء نسخة Android (Capacitor) يحتاج ملف index.html ثابت، لذلك نفعّل وضع SPA
-// فقط عند تعيين MOBILE_BUILD=1 — بناء الويب يبقى كما هو تمامًا.
-const mobileBuild = process.env["MOBILE_BUILD"] === "1";
-
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     // nitro/vite builds from this
     server: { entry: "server" },
-    ...(mobileBuild
-      ? { spa: { enabled: true, prerender: { outputPath: "/index.html" } } }
-      : {}),
   },
   vite: {
     plugins: [
