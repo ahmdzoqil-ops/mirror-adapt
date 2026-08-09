@@ -42,6 +42,8 @@ export type Settings = {
   shopName: string;
   logo: string;
   currency: string;
+  /** عنوان المستخدم / موقع المتجر (اختياري) */
+  address?: string;
   /** الإشعارات */
   notifyLedger: boolean;
   notifyDaily: boolean;
@@ -107,6 +109,7 @@ export const defaultState: AppState = {
     shopName: "",
     logo: "",
     currency: "ريال",
+    address: "",
     notifyLedger: true,
     notifyDaily: true,
     notifyLedgerDays: 7,

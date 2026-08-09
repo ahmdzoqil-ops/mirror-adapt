@@ -6,7 +6,6 @@ import {
   Minus,
   Plus,
   Settings as SettingsIcon,
-  Trash2,
   Users,
   Wallet,
 } from "lucide-react";
@@ -18,7 +17,6 @@ import { DebtorsSection } from "@/components/sections/DebtorsSection";
 import { PaymentsSection } from "@/components/sections/PaymentsSection";
 import { ReportsSection } from "@/components/sections/ReportsSection";
 import { SettingsSection } from "@/components/sections/SettingsSection";
-import { TrashSection } from "@/components/sections/TrashSection";
 import { loadState } from "@/lib/store";
 import { startReminderLoop } from "@/lib/notify";
 import { startBackupLoop } from "@/lib/backup";
@@ -49,7 +47,6 @@ const TABS = [
   { id: "debtors", label: "المديونية", icon: Users },
   { id: "payments", label: "السداد", icon: HandCoins },
   { id: "reports", label: "التقارير", icon: CalendarDays },
-  { id: "trash", label: "المحذوفات", icon: Trash2 },
   { id: "settings", label: "الإعدادات", icon: SettingsIcon },
 ] as const;
 
@@ -93,12 +90,11 @@ function Index() {
           {tab === "debtors" && <DebtorsSection />}
           {tab === "payments" && <PaymentsSection />}
           {tab === "reports" && <ReportsSection />}
-          {tab === "trash" && <TrashSection />}
           {tab === "settings" && <SettingsSection />}
         </main>
 
         {/* زر الإضافة العائم */}
-        {tab !== "settings" && tab !== "trash" && (
+        {tab !== "settings" && (
         <div className="fixed bottom-24 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2">
           {fabOpen && (
             <div className="flex flex-col gap-2 animate-in fade-in-0 slide-in-from-bottom-2 duration-150">
