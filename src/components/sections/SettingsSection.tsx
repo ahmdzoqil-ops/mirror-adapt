@@ -1,4 +1,4 @@
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell,
   Code2,
@@ -45,6 +45,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { PhotoInput } from "@/components/PhotoInput";
 import { VerifyDialog } from "@/components/AppLock";
+import { TrashSection } from "@/components/sections/TrashSection";
 import {
   getState,
   replaceState,
@@ -60,6 +61,7 @@ import {
 } from "@/lib/biometric";
 import {
   notificationPermission,
+  refreshNotificationPermission,
   requestNotificationPermission,
   runReminderCheck,
 } from "@/lib/notify";
@@ -84,7 +86,15 @@ export function SettingsSection() {
   const { settings } = useAppState();
   const [pinOpen, setPinOpen] = useState(false);
   const [verify, setVerify] = useState<"lock" | "sensitive" | null>(null);
+  const [showTrash, setShowTrash] = useState(false);
+  const [perm, setPerm] = useState<ReturnType<typeof notificationPermission>>(() =>
+    notificationPermission(),
+  );
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    void refreshNotificationPermission().then(setPerm);
+  }, []);
 
   function exportBackup() {
     const data = JSON.stringify(getState(), null, 2);
@@ -132,6 +142,7 @@ export function SettingsSection() {
   async function toggleNotifications(kind: "notifyLedger" | "notifyDaily", v: boolean) {
     if (v) {
       const ok = await requestNotificationPermission();
+      setPerm(notificationPermission());
       if (!ok) {
         toast.error("لم يتم السماح بالإشعارات على هذا الجهاز");
         return;
@@ -140,7 +151,19 @@ export function SettingsSection() {
     updateSettings({ [kind]: v } as never);
   }
 
-  const perm = notificationPermission();
+  if (showTrash) {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowTrash(false)}
+          className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2 text-sm font-semibold"
+        >
+          رجوع إلى الإعدادات
+        </button>
+        <TrashSection />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -261,6 +284,13 @@ export function SettingsSection() {
 
       {/* ===== معلومات المستخدم ===== */}
       <ProfileCard />
+
+      {/* ===== المحذوفات ===== */}
+      <Section title="المحذوفات" icon={<Trash2 className="size-4" />}>
+        <Button variant="secondary" className="w-full" onClick={() => setShowTrash(true)}>
+          <Trash2 className="size-4" /> فتح المحذوفات
+        </Button>
+      </Section>
 
       {/* ===== النسخ الاحتياطي ===== */}
       <Section title="النسخ الاحتياطي" icon={<Download className="size-4" />}>
