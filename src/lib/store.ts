@@ -42,6 +42,8 @@ export type Settings = {
   shopName: string;
   logo: string;
   currency: string;
+  /** عنوان المستخدم / موقع المتجر (اختياري) */
+  address?: string;
   /** الإشعارات */
   notifyLedger: boolean;
   notifyDaily: boolean;
