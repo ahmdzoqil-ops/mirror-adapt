@@ -6,7 +6,6 @@ import {
   Minus,
   Plus,
   Settings as SettingsIcon,
-  Trash2,
   Users,
   Wallet,
 } from "lucide-react";
