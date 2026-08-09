@@ -16,8 +16,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // توقيع نسخة الإصدار — يُقرأ من متغيرات البيئة في GitHub Actions
+    signingConfigs {
+        release {
+            def storeFilePath = System.getenv("DAFTARI_KEYSTORE_FILE")
+            if (storeFilePath) {
+                storeFile file(storeFilePath)
+                storePassword System.getenv("DAFTARI_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("DAFTARI_KEY_ALIAS")
+                keyPassword System.getenv("DAFTARI_KEY_PASSWORD")
+            }
+        }
+    }
     buildTypes {
         release {
+            if (System.getenv("DAFTARI_KEYSTORE_FILE")) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
