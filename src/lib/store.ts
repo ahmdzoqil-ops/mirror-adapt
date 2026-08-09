@@ -109,6 +109,7 @@ export const defaultState: AppState = {
     shopName: "",
     logo: "",
     currency: "ريال",
+    address: "",
     notifyLedger: true,
     notifyDaily: true,
     notifyLedgerDays: 7,
