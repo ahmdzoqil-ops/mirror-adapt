@@ -457,11 +457,12 @@ function ProfileCard() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="curr">العملة</Label>
+          <Label htmlFor="uaddr">العنوان</Label>
           <Input
-            id="curr"
-            value={settings.currency}
-            onChange={(e) => updateSettings({ currency: e.target.value })}
+            id="uaddr"
+            placeholder="اختياري — المدينة أو موقع المتجر"
+            value={settings.address ?? ""}
+            onChange={(e) => updateSettings({ address: e.target.value })}
           />
         </div>
       </div>
