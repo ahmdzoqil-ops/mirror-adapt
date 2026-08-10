@@ -41,6 +41,9 @@ export function TxnRow({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressed = useRef(false);
   const isDebt = kind === "debt";
+  const [dx, setDx] = useState(0);
+  const startX = useRef<number | null>(null);
+  const startY = useRef<number | null>(null);
 
   function start() {
     longPressed.current = false;
@@ -56,13 +59,50 @@ export function TxnRow({
     timer.current = null;
   }
 
+  useEffect(() => () => cancel(), []);
+
   return (
+    <div className="relative overflow-hidden rounded-2xl" data-no-swipe>
+      <div className="pointer-events-none absolute inset-y-0 right-0 flex w-28 items-center justify-center gap-1 bg-destructive/10 text-sm font-bold text-destructive">
+        <Trash2 className="size-4" /> حذف
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 flex w-28 items-center justify-center gap-1 bg-secondary text-sm font-bold">
+        <Pencil className="size-4" /> تعديل
+      </div>
     <div
-      className="card-soft flex touch-manipulation items-center gap-3 p-3 select-none active:bg-secondary/40"
-      onPointerDown={start}
-      onPointerUp={cancel}
-      onPointerLeave={cancel}
-      onPointerCancel={cancel}
+      style={{ transform: `translateX(${dx}px)` }}
+      className="card-soft relative flex touch-pan-y items-center gap-3 p-3 select-none active:bg-secondary/40"
+      onPointerDown={(e) => {
+        startX.current = e.clientX;
+        startY.current = e.clientY;
+        start();
+      }}
+      onPointerMove={(e) => {
+        if (startX.current === null || startY.current === null) return;
+        const mx = e.clientX - startX.current;
+        const my = e.clientY - startY.current;
+        if (Math.abs(mx) > 8) cancel();
+        if (Math.abs(mx) > Math.abs(my)) setDx(Math.max(-140, Math.min(140, mx)));
+      }}
+      onPointerUp={() => {
+        cancel();
+        const moved = dx;
+        startX.current = null;
+        startY.current = null;
+        setDx(0);
+        if (moved <= -90) setVerify("edit");
+        else if (moved >= 90) setVerify("delete");
+      }}
+      onPointerLeave={() => {
+        cancel();
+        setDx(0);
+        startX.current = null;
+      }}
+      onPointerCancel={() => {
+        cancel();
+        setDx(0);
+        startX.current = null;
+      }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <div className="min-w-0 flex-1">
@@ -73,7 +113,7 @@ export function TxnRow({
               params={{ id: clientId }}
               className="truncate font-semibold hover:underline"
               onClick={(e) => {
-                if (longPressed.current) e.preventDefault();
+                if (longPressed.current || dx !== 0) e.preventDefault();
               }}
             >
               {name}
@@ -171,6 +211,7 @@ export function TxnRow({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
     </div>
   );
 }
