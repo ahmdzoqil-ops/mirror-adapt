@@ -292,6 +292,8 @@ function ClientPage() {
         data={report}
       />
 
+      <ImageViewer src={viewPhoto} onClose={() => setViewPhoto(null)} />
+
 
       <TxnDialog
         open={addKind !== null}
