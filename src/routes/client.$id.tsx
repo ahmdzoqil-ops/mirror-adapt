@@ -64,6 +64,7 @@ import {
   removeAlert,
   resetClientAccount,
   setAlert,
+  setArchived,
   updateClient,
   useAppState,
   type Client,
@@ -98,6 +99,7 @@ function ClientPage() {
   const [verifyOpen, setVerifyOpen] = useState(false);
   const [confirm, setConfirm] = useState<"reset" | "delete" | null>(null);
   const [report, setReport] = useState<ReportData | null>(null);
+  const [viewPhoto, setViewPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     loadState();
