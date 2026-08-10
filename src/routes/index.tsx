@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   HandCoins,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { AppLock } from "@/components/AppLock";
 import { AlertsCenter } from "@/components/AlertsCenter";
+import { SplashScreen } from "@/components/SplashScreen";
 import { TxnDialog, type TxnKind } from "@/components/TxnDialog";
 import { DailySection } from "@/components/sections/DailySection";
 import { DebtorsSection } from "@/components/sections/DebtorsSection";
@@ -20,6 +21,7 @@ import { SettingsSection } from "@/components/sections/SettingsSection";
 import { loadState } from "@/lib/store";
 import { startReminderLoop } from "@/lib/notify";
 import { startBackupLoop } from "@/lib/backup";
+import { startBackButtonHandler } from "@/lib/back-button";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -55,24 +57,52 @@ type TabId = (typeof TABS)[number]["id"];
 function Index() {
   const [tab, setTab] = useState<TabId>("daily");
   const [ready, setReady] = useState(false);
+  const [splash, setSplash] = useState(true);
   const [fabOpen, setFabOpen] = useState(false);
   const [dialog, setDialog] = useState<TxnKind | null>(null);
+  const swipe = useRef<{ x: number; y: number; ok: boolean } | null>(null);
 
   useEffect(() => {
     loadState();
     setReady(true);
     const stopReminders = startReminderLoop();
     const stopBackups = startBackupLoop();
+    const stopBack = startBackButtonHandler();
     return () => {
       stopReminders();
       stopBackups();
+      stopBack();
     };
   }, []);
 
   if (!ready) return <div className="min-h-screen bg-background" />;
 
+  /** التنقل بين الأقسام بالسحب الأفقي الواضح فقط */
+  function onTouchStart(e: React.TouchEvent) {
+    const t = e.touches[0];
+    if (!t) return;
+    const el = e.target as HTMLElement;
+    const blocked = !!el.closest("[data-no-swipe],input,textarea,select,[role='dialog']");
+    swipe.current = { x: t.clientX, y: t.clientY, ok: !blocked };
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    const s = swipe.current;
+    swipe.current = null;
+    const t = e.changedTouches[0];
+    if (!s || !s.ok || !t) return;
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
+    const idx = TABS.findIndex((x) => x.id === tab);
+    const next = dx < 0 ? idx + 1 : idx - 1;
+    const target = TABS[next];
+    if (target) setTab(target.id);
+  }
+
   return (
     <AppLock>
+      {splash && <SplashScreen onDone={() => setSplash(false)} />}
       <div className="min-h-screen bg-background pb-28">
         <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
           <div className="min-w-0 flex-1">
@@ -85,7 +115,11 @@ function Index() {
         </header>
 
 
-        <main className="mx-auto max-w-2xl animate-in fade-in-0 duration-200 p-4">
+        <main
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          className="mx-auto max-w-2xl animate-in fade-in-0 duration-200 p-4"
+        >
           {tab === "daily" && <DailySection />}
           {tab === "debtors" && <DebtorsSection />}
           {tab === "payments" && <PaymentsSection />}

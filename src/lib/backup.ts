@@ -147,7 +147,7 @@ export function downloadBackup(id: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `daftari-${rec.at.slice(0, 10)}.json`;
+    a.download = backupFileName(rec.at);
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     return true;
@@ -155,6 +155,16 @@ export function downloadBackup(id: string) {
     return false;
   }
 }
+
+/** اسم ملف واضح وسهل البحث داخل الهاتف */
+export function backupFileName(iso: string = new Date().toISOString()) {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const time = `${p(d.getHours())}-${p(d.getMinutes())}`;
+  return `دفتري_نسخة_احتياطية_${date}_${time}.json`;
+}
+
 
 export function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} بايت`;

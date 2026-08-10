@@ -16,6 +16,8 @@ export type Client = {
   notifyMuted?: boolean | undefined;
   /** عدد الأيام الخاص بهذا العميل (null = استخدام الإعداد العام) */
   notifyDays?: number | null | undefined;
+  /** عميل مؤرشف — لا يظهر في قائمة المديونية النشطة (بياناته تبقى كما هي) */
+  archived?: boolean | undefined;
 };
 
 export type Txn = {
@@ -44,6 +46,8 @@ export type Settings = {
   currency: string;
   /** عنوان المستخدم / موقع المتجر (اختياري) */
   address?: string;
+  /** المفتاح الرئيسي لكل التنبيهات — إيقاف مؤقت شامل بدون حذف أي إعداد */
+  notifyEnabled: boolean;
   /** الإشعارات */
   notifyLedger: boolean;
   notifyDaily: boolean;
@@ -72,6 +76,8 @@ export type AlertRule = {
   /** موعد التذكير القادم (ISO) */
   nextAt: string;
   lastNotifiedAt?: string | undefined;
+  /** وقت التنبيه المفضل خلال اليوم بصيغة HH:MM (اختياري) */
+  atTime?: string | undefined;
 };
 
 /** عنصر في سلة المهملات — يحتفظ بالعملية الأصلية كما هي */
@@ -87,6 +93,8 @@ export type AppState = {
   payments: Txn[];
   trash: TrashItem[];
   alerts: AlertRule[];
+  /** مفاتيح تنبيهات أُزيلت يدويًا من الجرس (لا تؤثر على إعدادات العميل) */
+  dismissed: string[];
   settings: Settings;
 };
 
@@ -98,6 +106,7 @@ export const defaultState: AppState = {
   payments: [],
   trash: [],
   alerts: [],
+  dismissed: [],
   settings: {
     lockEnabled: false,
     sensitiveLock: true,
@@ -110,6 +119,7 @@ export const defaultState: AppState = {
     logo: "",
     currency: "ريال",
     address: "",
+    notifyEnabled: true,
     notifyLedger: true,
     notifyDaily: true,
     notifyLedgerDays: 7,
@@ -154,6 +164,7 @@ export function loadState() {
         payments: (parsed.payments ?? []).map(migrateTxn),
         trash: (parsed.trash ?? []).filter((t) => t && t.txn && t.kind),
         alerts: parsed.alerts ?? [],
+        dismissed: (parsed.dismissed ?? []).filter((k) => typeof k === "string"),
         settings: { ...defaultState.settings, ...(parsed.settings ?? {}) },
       };
     }
@@ -161,6 +172,7 @@ export function loadState() {
     state = defaultState;
   }
   purgeOld();
+  pruneDismissed();
   state = promoteToLedger(state);
   persist();
   emit();
@@ -234,6 +246,7 @@ export function replaceState(next: AppState) {
     payments: (next.payments ?? []).map(migrateTxn),
     trash: next.trash ?? [],
     alerts: next.alerts ?? [],
+    dismissed: next.dismissed ?? [],
     settings: { ...defaultState.settings, ...(next.settings ?? {}) },
   }));
 }
@@ -255,6 +268,25 @@ function purgeOld() {
 }
 
 /* ============ عملاء ============ */
+
+/** إزالة مفاتيح التنبيهات المُخفاة من أيام سابقة حتى تعود التنبيهات للظهور */
+function pruneDismissed() {
+  const today = todayKey();
+  const kept = (state.dismissed ?? []).filter((k) => k.endsWith(today));
+  if (kept.length !== (state.dismissed ?? []).length) {
+    state = { ...state, dismissed: kept };
+    persist();
+  }
+}
+
+/** إخفاء تنبيه من قائمة الجرس فقط — لا يمسّ إعدادات العميل ولا الديون */
+export function dismissNotification(key: string) {
+  setState((s) => (s.dismissed.includes(key) ? s : { ...s, dismissed: [...s.dismissed, key] }));
+}
+
+export function setArchived(clientId: string, archived: boolean) {
+  updateClient(clientId, { archived });
+}
 
 export function findOrCreateClient(name: string, ledger = false): Client {
   const trimmed = name.trim();
@@ -490,6 +522,7 @@ export type Reminder = {
 export function dueReminders(s: AppState): Reminder[] {
   const out: Reminder[] = [];
   const today = todayKey();
+  if (!s.settings.notifyEnabled) return out;
 
   if (s.settings.notifyLedger) {
     for (const c of s.clients) {
@@ -622,4 +655,83 @@ export function activeAlerts(s: AppState): ActiveAlert[] {
 
 export function dueAlerts(s: AppState) {
   return activeAlerts(s).filter((a) => a.due);
+}
+
+/* ============ قائمة جرس التنبيهات ============ */
+
+export type BellItem = {
+  key: string;
+  /** مجموعة العرض داخل الجرس */
+  group: "daily" | "ledger";
+  clientId: string;
+  clientName: string;
+  title: string;
+  body: string;
+  due: boolean;
+  amount: number;
+  nextAt?: string | undefined;
+  everyDays?: number | undefined;
+};
+
+/**
+ * وقت وصول التنبيه خلال اليوم:
+ * - وقت العميل المحدد إن وُجد.
+ * - وإلا توزيع ثابت (مشتق من معرّف العميل) بين 9 صباحًا و7 مساءً حتى لا
+ *   تصل كل التنبيهات في لحظة واحدة.
+ */
+export function slotHourFor(clientId: string, atTime?: string | null): number {
+  if (atTime && /^\d{1,2}:\d{2}$/.test(atTime)) return Number(atTime.split(":")[0]);
+  let h = 0;
+  for (let i = 0; i < clientId.length; i++) h = (h * 31 + clientId.charCodeAt(i)) | 0;
+  return 9 + (Math.abs(h) % 11); // 9 → 19
+}
+
+export function slotReached(clientId: string, atTime?: string | null) {
+  return new Date().getHours() >= slotHourFor(clientId, atTime);
+}
+
+/** كل تنبيهات الجرس مجمّعة ومنظّفة من التكرار والمُخفَى منها */
+export function bellItems(s: AppState): BellItem[] {
+  if (!s.settings.notifyEnabled) return [];
+  const today = todayKey();
+  const out: BellItem[] = [];
+  const withRule = new Set<string>();
+
+  for (const a of activeAlerts(s)) {
+    withRule.add(a.client.id);
+    out.push({
+      key: `rule-${a.client.id}-${today}`,
+      group: "ledger",
+      clientId: a.client.id,
+      clientName: a.client.name,
+      title: `تذكير متابعة: ${a.client.name}`,
+      body: `تذكير ${alertIntervalLabel(a.rule.everyDays)} — المتبقي ${a.remaining}`,
+      due: a.due,
+      amount: a.remaining,
+      nextAt: a.rule.nextAt,
+      everyDays: a.rule.everyDays,
+    });
+  }
+
+  for (const r of dueReminders(s)) {
+    const group: "daily" | "ledger" = r.key.startsWith("daily-") ? "daily" : "ledger";
+    if (group === "ledger" && withRule.has(r.clientId)) continue;
+    out.push({
+      key: r.key,
+      group,
+      clientId: r.clientId,
+      clientName: clientName(s, r.clientId),
+      title: r.title,
+      body: r.body,
+      due: true,
+      amount: balanceOf(s, r.clientId),
+    });
+  }
+
+  const seen = new Set<string>();
+  return out.filter((i) => {
+    if (seen.has(i.key) || s.dismissed.includes(i.key)) return false;
+    seen.add(i.key);
+    return true;
+  });
 }

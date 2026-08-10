@@ -221,6 +221,15 @@ export function SettingsSection() {
 
       {/* ===== الإشعارات ===== */}
       <Section title="الإشعارات والتنبيهات" icon={<Bell className="size-4" />}>
+        <Row
+          label="تفعيل التنبيهات"
+          hint="إيقاف مؤقت شامل — لا يحذف إعدادات تنبيهات العملاء"
+        >
+          <Switch
+            checked={settings.notifyEnabled}
+            onCheckedChange={(v) => updateSettings({ notifyEnabled: v })}
+          />
+        </Row>
         <Row label="تنبيه متابعة المديونية" hint="تذكير بالعملاء الذين تأخر سدادهم">
           <Switch
             checked={settings.notifyLedger}
