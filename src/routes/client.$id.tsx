@@ -2,6 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
+  Archive,
+  ArchiveRestore,
   BellOff,
   Contact,
   Eraser,
@@ -46,7 +48,8 @@ import { TxnRow } from "@/components/TxnRow";
 import { TxnDialog } from "@/components/TxnDialog";
 import { VerifyDialog } from "@/components/AppLock";
 import { ReportDialog } from "@/components/ReportDialog";
-import { pickContact, contactsSupported } from "@/lib/contacts";
+import { ImageViewer } from "@/components/ImageViewer";
+import { pickContactDetailed } from "@/lib/contacts";
 import { shareUrlFor } from "@/lib/share";
 import { buildClientReport, type ReportData } from "@/lib/report";
 import { Money } from "@/components/Riyal";
@@ -188,6 +191,23 @@ function ClientPage() {
             <DropdownMenuItem onSelect={() => void shareAccount()}>
               <Share2 className="size-4" /> مشاركة الرابط
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => {
+                const next = client.archived !== true;
+                setArchived(client.id, next);
+                toast.success(next ? "تمت أرشفة العميل" : "تمت إعادة العميل إلى المديونية");
+              }}
+            >
+              {client.archived ? (
+                <>
+                  <ArchiveRestore className="size-4" /> إلغاء الأرشفة
+                </>
+              ) : (
+                <>
+                  <Archive className="size-4" /> أرشفة العميل
+                </>
+              )}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => runProtected("reset")}>
               <Eraser className="size-4" /> تصفير الحساب
@@ -201,7 +221,17 @@ function ClientPage() {
 
       <main className="mx-auto max-w-2xl space-y-4 p-4">
         <div className="card-soft flex items-center gap-4 p-4">
-          <ClientAvatar name={client.name} photo={client.photo} size="lg" />
+          {client.photo ? (
+            <button
+              type="button"
+              aria-label="عرض صورة العميل"
+              onClick={() => setViewPhoto(client.photo ?? null)}
+            >
+              <ClientAvatar name={client.name} photo={client.photo} size="lg" />
+            </button>
+          ) : (
+            <ClientAvatar name={client.name} photo={client.photo} size="lg" />
+          )}
           <div className="min-w-0 flex-1">
             <p className="truncate text-lg font-bold">{client.name}</p>
             {client.phone ? (
@@ -364,14 +394,17 @@ function ClientInfoDialog({
                 aria-label="اختيار من جهات الاتصال"
                 onClick={() => {
                   void (async () => {
-                    if (!contactsSupported()) {
-                      toast.error("جهات الاتصال غير مدعومة على هذا الجهاز");
+                    const res = await pickContactDetailed();
+                    if (!res.ok) {
+                      if (res.reason === "denied")
+                        toast.error("لم يتم السماح بالوصول إلى جهات الاتصال");
+                      else if (res.reason === "unsupported")
+                        toast.error("جهات الاتصال غير مدعومة على هذا الجهاز");
+                      else if (res.reason === "error") toast.error("تعذر فتح جهات الاتصال");
                       return;
                     }
-                    const c = await pickContact();
-                    if (!c) return;
-                    if (c.phone) setP(c.phone);
-                    if (c.name && !n.trim()) setN(c.name);
+                    if (res.contact.phone) setP(res.contact.phone);
+                    if (res.contact.name && !n.trim()) setN(res.contact.name);
                   })();
                 }}
               >
