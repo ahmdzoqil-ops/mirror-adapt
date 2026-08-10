@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Contact, Search, UserPlus, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Contact, Search, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,19 +17,20 @@ import { ClientAvatar } from "@/components/ClientAvatar";
 import { EmptyState } from "@/components/sections/DailySection";
 import { formatMoney } from "@/lib/format";
 import { matchScore } from "@/lib/arabic";
-import { contactsSupported, pickContact } from "@/lib/contacts";
+import { pickContactDetailed } from "@/lib/contacts";
 
-import { addClient, balanceOf, isDebtor, useAppState } from "@/lib/store";
+import { addClient, balanceOf, isDebtor, setArchived, useAppState } from "@/lib/store";
 import { Money } from "@/components/Riyal";
 
 export function DebtorsSection() {
   const state = useAppState();
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
+  const [view, setView] = useState<"active" | "archive">("active");
 
   const debtors = useMemo(() => {
     const list = state.clients
-      .filter((c) => isDebtor(state, c))
+      .filter((c) => isDebtor(state, c) && c.archived !== true)
       .map((c) => ({ client: c, balance: balanceOf(state, c.id) }));
     if (!query.trim()) return list.sort((a, b) => b.balance - a.balance);
     return list
@@ -39,6 +40,61 @@ export function DebtorsSection() {
   }, [state, query]);
 
   const total = debtors.reduce((a, d) => a + d.balance, 0);
+  const archived = state.clients.filter((c) => c.archived === true);
+
+  if (view === "archive") {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setView("active")}
+          className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2 text-sm font-semibold"
+        >
+          رجوع إلى المديونية
+        </button>
+        <div className="card-soft p-4">
+          <p className="text-sm text-muted-foreground">العملاء المؤرشفون</p>
+          <p className="num mt-1 text-3xl font-extrabold">{archived.length}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            الأرشفة لا تحذف العميل ولا ديونه ولا تغيّر رصيده أو التقارير.
+          </p>
+        </div>
+        {archived.length === 0 && (
+          <EmptyState
+            icon={<Archive className="size-6" />}
+            title="الأرشيف فارغ"
+            hint="يمكنك أرشفة أي عميل من صفحته"
+          />
+        )}
+        {archived.map((c) => (
+          <div key={c.id} className="card-soft space-y-3 p-3">
+            <Link
+              to="/client/$id"
+              params={{ id: c.id }}
+              className="flex items-center gap-3"
+            >
+              <ClientAvatar name={c.name} photo={c.photo} size="md" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-bold">{c.name}</p>
+                {c.phone && <p className="num text-xs text-muted-foreground">{c.phone}</p>}
+              </div>
+              <span className="num text-base font-extrabold text-destructive">
+                <Money value={balanceOf(state, c.id)} />
+              </span>
+            </Link>
+            <button
+              onClick={() => {
+                setArchived(c.id, false);
+                toast.success("تمت إعادة العميل إلى المديونية");
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary p-3 text-sm font-semibold"
+            >
+              <ArchiveRestore className="size-4" /> إلغاء الأرشفة
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -62,6 +118,16 @@ export function DebtorsSection() {
           <UserPlus className="size-4" /> عميل
         </Button>
       </div>
+
+      <button
+        onClick={() => setView("archive")}
+        className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
+      >
+        <span className="flex items-center gap-2">
+          <Archive className="size-4" /> الأرشيف
+        </span>
+        <span className="num text-muted-foreground">{archived.length}</span>
+      </button>
 
       {debtors.length === 0 && (
         <EmptyState
@@ -153,14 +219,17 @@ function AddClientDialog({
                 aria-label="اختيار من جهات الاتصال"
                 onClick={() => {
                   void (async () => {
-                    if (!contactsSupported()) {
-                      toast.error("جهات الاتصال غير مدعومة على هذا الجهاز");
+                    const res = await pickContactDetailed();
+                    if (!res.ok) {
+                      if (res.reason === "denied")
+                        toast.error("لم يتم السماح بالوصول إلى جهات الاتصال");
+                      else if (res.reason === "unsupported")
+                        toast.error("جهات الاتصال غير مدعومة على هذا الجهاز");
+                      else if (res.reason === "error") toast.error("تعذر فتح جهات الاتصال");
                       return;
                     }
-                    const c = await pickContact();
-                    if (!c) return;
-                    if (c.phone) setPhone(c.phone);
-                    if (c.name && !name.trim()) setName(c.name);
+                    if (res.contact.phone) setPhone(res.contact.phone);
+                    if (res.contact.name && !name.trim()) setName(res.contact.name);
                   })();
                 }}
               >
