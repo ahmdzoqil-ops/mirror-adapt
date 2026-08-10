@@ -16,6 +16,8 @@ export type Client = {
   notifyMuted?: boolean | undefined;
   /** عدد الأيام الخاص بهذا العميل (null = استخدام الإعداد العام) */
   notifyDays?: number | null | undefined;
+  /** عميل مؤرشف — لا يظهر في قائمة المديونية النشطة (بياناته تبقى كما هي) */
+  archived?: boolean | undefined;
 };
 
 export type Txn = {
@@ -44,6 +46,8 @@ export type Settings = {
   currency: string;
   /** عنوان المستخدم / موقع المتجر (اختياري) */
   address?: string;
+  /** المفتاح الرئيسي لكل التنبيهات — إيقاف مؤقت شامل بدون حذف أي إعداد */
+  notifyEnabled: boolean;
   /** الإشعارات */
   notifyLedger: boolean;
   notifyDaily: boolean;
@@ -72,6 +76,8 @@ export type AlertRule = {
   /** موعد التذكير القادم (ISO) */
   nextAt: string;
   lastNotifiedAt?: string | undefined;
+  /** وقت التنبيه المفضل خلال اليوم بصيغة HH:MM (اختياري) */
+  atTime?: string | undefined;
 };
 
 /** عنصر في سلة المهملات — يحتفظ بالعملية الأصلية كما هي */
@@ -87,6 +93,8 @@ export type AppState = {
   payments: Txn[];
   trash: TrashItem[];
   alerts: AlertRule[];
+  /** مفاتيح تنبيهات أُزيلت يدويًا من الجرس (لا تؤثر على إعدادات العميل) */
+  dismissed: string[];
   settings: Settings;
 };
 
@@ -98,6 +106,7 @@ export const defaultState: AppState = {
   payments: [],
   trash: [],
   alerts: [],
+  dismissed: [],
   settings: {
     lockEnabled: false,
     sensitiveLock: true,
@@ -110,6 +119,7 @@ export const defaultState: AppState = {
     logo: "",
     currency: "ريال",
     address: "",
+    notifyEnabled: true,
     notifyLedger: true,
     notifyDaily: true,
     notifyLedgerDays: 7,
@@ -154,6 +164,7 @@ export function loadState() {
         payments: (parsed.payments ?? []).map(migrateTxn),
         trash: (parsed.trash ?? []).filter((t) => t && t.txn && t.kind),
         alerts: parsed.alerts ?? [],
+        dismissed: (parsed.dismissed ?? []).filter((k) => typeof k === "string"),
         settings: { ...defaultState.settings, ...(parsed.settings ?? {}) },
       };
     }
@@ -161,6 +172,7 @@ export function loadState() {
     state = defaultState;
   }
   purgeOld();
+  pruneDismissed();
   state = promoteToLedger(state);
   persist();
   emit();
@@ -234,6 +246,7 @@ export function replaceState(next: AppState) {
     payments: (next.payments ?? []).map(migrateTxn),
     trash: next.trash ?? [],
     alerts: next.alerts ?? [],
+    dismissed: next.dismissed ?? [],
     settings: { ...defaultState.settings, ...(next.settings ?? {}) },
   }));
 }
