@@ -165,22 +165,6 @@ export function backupFileName(iso: string = new Date().toISOString()) {
   return `دفتري_نسخة_احتياطية_${date}_${time}.json`;
 }
 
-function legacyDownloadBackup(id: string) {
-  const rec = read().find((b) => b.id === id);
-  if (!rec) return false;
-  try {
-    const blob = new Blob([rec.data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `daftari-${rec.at.slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 export function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} بايت`;
