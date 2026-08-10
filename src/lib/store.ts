@@ -269,6 +269,25 @@ function purgeOld() {
 
 /* ============ عملاء ============ */
 
+/** إزالة مفاتيح التنبيهات المُخفاة من أيام سابقة حتى تعود التنبيهات للظهور */
+function pruneDismissed() {
+  const today = todayKey();
+  const kept = (state.dismissed ?? []).filter((k) => k.endsWith(today));
+  if (kept.length !== (state.dismissed ?? []).length) {
+    state = { ...state, dismissed: kept };
+    persist();
+  }
+}
+
+/** إخفاء تنبيه من قائمة الجرس فقط — لا يمسّ إعدادات العميل ولا الديون */
+export function dismissNotification(key: string) {
+  setState((s) => (s.dismissed.includes(key) ? s : { ...s, dismissed: [...s.dismissed, key] }));
+}
+
+export function setArchived(clientId: string, archived: boolean) {
+  updateClient(clientId, { archived });
+}
+
 export function findOrCreateClient(name: string, ledger = false): Client {
   const trimmed = name.trim();
   const existing = state.clients.find(
