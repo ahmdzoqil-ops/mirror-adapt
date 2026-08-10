@@ -156,6 +156,32 @@ export function downloadBackup(id: string) {
   }
 }
 
+/** اسم ملف واضح وسهل البحث داخل الهاتف */
+export function backupFileName(iso: string = new Date().toISOString()) {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const time = `${p(d.getHours())}-${p(d.getMinutes())}`;
+  return `دفتري_نسخة_احتياطية_${date}_${time}.json`;
+}
+
+function legacyDownloadBackup(id: string) {
+  const rec = read().find((b) => b.id === id);
+  if (!rec) return false;
+  try {
+    const blob = new Blob([rec.data], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `daftari-${rec.at.slice(0, 10)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} بايت`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} ك.ب`;
