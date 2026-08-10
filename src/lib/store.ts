@@ -522,6 +522,7 @@ export type Reminder = {
 export function dueReminders(s: AppState): Reminder[] {
   const out: Reminder[] = [];
   const today = todayKey();
+  if (!s.settings.notifyEnabled) return out;
 
   if (s.settings.notifyLedger) {
     for (const c of s.clients) {
