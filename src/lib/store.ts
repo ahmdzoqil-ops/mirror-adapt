@@ -655,3 +655,82 @@ export function activeAlerts(s: AppState): ActiveAlert[] {
 export function dueAlerts(s: AppState) {
   return activeAlerts(s).filter((a) => a.due);
 }
+
+/* ============ قائمة جرس التنبيهات ============ */
+
+export type BellItem = {
+  key: string;
+  /** مجموعة العرض داخل الجرس */
+  group: "daily" | "ledger";
+  clientId: string;
+  clientName: string;
+  title: string;
+  body: string;
+  due: boolean;
+  amount: number;
+  nextAt?: string | undefined;
+  everyDays?: number | undefined;
+};
+
+/**
+ * وقت وصول التنبيه خلال اليوم:
+ * - وقت العميل المحدد إن وُجد.
+ * - وإلا توزيع ثابت (مشتق من معرّف العميل) بين 9 صباحًا و7 مساءً حتى لا
+ *   تصل كل التنبيهات في لحظة واحدة.
+ */
+export function slotHourFor(clientId: string, atTime?: string | null): number {
+  if (atTime && /^\d{1,2}:\d{2}$/.test(atTime)) return Number(atTime.split(":")[0]);
+  let h = 0;
+  for (let i = 0; i < clientId.length; i++) h = (h * 31 + clientId.charCodeAt(i)) | 0;
+  return 9 + (Math.abs(h) % 11); // 9 → 19
+}
+
+export function slotReached(clientId: string, atTime?: string | null) {
+  return new Date().getHours() >= slotHourFor(clientId, atTime);
+}
+
+/** كل تنبيهات الجرس مجمّعة ومنظّفة من التكرار والمُخفَى منها */
+export function bellItems(s: AppState): BellItem[] {
+  if (!s.settings.notifyEnabled) return [];
+  const today = todayKey();
+  const out: BellItem[] = [];
+  const withRule = new Set<string>();
+
+  for (const a of activeAlerts(s)) {
+    withRule.add(a.client.id);
+    out.push({
+      key: `rule-${a.client.id}-${today}`,
+      group: "ledger",
+      clientId: a.client.id,
+      clientName: a.client.name,
+      title: `تذكير متابعة: ${a.client.name}`,
+      body: `تذكير ${alertIntervalLabel(a.rule.everyDays)} — المتبقي ${a.remaining}`,
+      due: a.due,
+      amount: a.remaining,
+      nextAt: a.rule.nextAt,
+      everyDays: a.rule.everyDays,
+    });
+  }
+
+  for (const r of dueReminders(s)) {
+    const group: "daily" | "ledger" = r.key.startsWith("daily-") ? "daily" : "ledger";
+    if (group === "ledger" && withRule.has(r.clientId)) continue;
+    out.push({
+      key: r.key,
+      group,
+      clientId: r.clientId,
+      clientName: clientName(s, r.clientId),
+      title: r.title,
+      body: r.body,
+      due: true,
+      amount: balanceOf(s, r.clientId),
+    });
+  }
+
+  const seen = new Set<string>();
+  return out.filter((i) => {
+    if (seen.has(i.key) || s.dismissed.includes(i.key)) return false;
+    seen.add(i.key);
+    return true;
+  });
+}
