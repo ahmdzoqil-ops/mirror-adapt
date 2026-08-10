@@ -147,7 +147,7 @@ export function downloadBackup(id: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `daftari-${rec.at.slice(0, 10)}.json`;
+    a.download = backupFileName(rec.at);
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     return true;
