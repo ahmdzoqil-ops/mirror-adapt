@@ -116,31 +116,70 @@ export function alertBody(
   return `المتبقي ${money}`;
 }
 
+/** سجل ما أُرسل اليوم — يمنع تكرار نفس التنبيه لنفس السبب في نفس اليوم */
+const SENT_KEY = "daftari-sent-alerts-v1";
+
+function sentToday(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = JSON.parse(localStorage.getItem(SENT_KEY) ?? "{}") as {
+      day?: string;
+      keys?: string[];
+    };
+    if (raw.day !== todayKey()) return new Set();
+    return new Set(raw.keys ?? []);
+  } catch {
+    return new Set();
+  }
+}
+
+function markSent(keys: Set<string>) {
+  try {
+    localStorage.setItem(SENT_KEY, JSON.stringify({ day: todayKey(), keys: [...keys] }));
+  } catch {
+    /* تجاهل */
+  }
+}
+
 /**
- * فحص التنبيهات المستحقة: يعرض التنبيه ثم يعيد جدولة نفس التنبيه
- * بدل إنشاء سلسلة تنبيهات جديدة.
+ * فحص التنبيهات المستحقة.
+ * - يحترم المفتاح الرئيسي للتنبيهات (إيقاف مؤقت شامل).
+ * - يوزّع الإرسال حسب وقت العميل أو فترة ثابتة من اليوم بدل دفعة واحدة.
+ * - لا يرسل نفس التنبيه مرتين في نفس اليوم.
  */
-export function runReminderCheck() {
+export function runReminderCheck(opts?: { force?: boolean }) {
   const state = getState();
-  const due = dueAlerts(state);
-  if (!due.length) return [];
+  if (!state.settings.notifyEnabled) return [];
+
+  const items = bellItems(state).filter((i) => i.due);
+  if (!items.length) return [];
 
   const canNotify = notificationsSupported() && notificationPermission() === "granted";
   const currency = state.settings.currency;
+  const sent = sentToday();
+  const delivered: typeof items = [];
 
-  for (const a of due) {
-    if (canNotify && !a.client.notifyMuted) {
-      const overdue = daysSince(a.rule.lastNotifiedAt ?? a.rule.createdAt);
-      const sev = severityOf(a.remaining, overdue);
+  for (const item of items) {
+    if (sent.has(item.key)) continue;
+    if (!opts?.force && !slotReached(item.clientId)) continue;
+
+    const client = state.clients.find((c) => c.id === item.clientId);
+    if (canNotify && client && !client.notifyMuted) {
+      const overdue = daysSince(client.createdAt);
+      const sev = severityOf(item.amount, overdue);
       showNotification(
-        alertTitle(a.client.name, sev),
-        alertBody(a.remaining, currency, overdue, sev),
-        Math.abs(hashId(a.client.id)),
+        alertTitle(item.clientName, sev),
+        alertBody(item.amount, currency, overdue, sev),
+        Math.abs(hashId(item.key)),
       );
     }
-    rollAlert(a.client.id);
+    sent.add(item.key);
+    delivered.push(item);
+    if (item.key.startsWith("rule-")) rollAlert(item.clientId);
   }
-  return due;
+
+  markSent(sent);
+  return delivered;
 }
 
 function hashId(id: string) {
@@ -149,12 +188,15 @@ function hashId(id: string) {
   return h % 100000;
 }
 
-/** تشغيل الفحص عند فتح التطبيق ثم كل ساعة */
+/**
+ * تشغيل الفحص عند فتح التطبيق ثم كل 15 دقيقة.
+ * الفحص خفيف جدًا ولا يرسل شيئًا قبل بلوغ وقت التنبيه المخصص.
+ */
 export function startReminderLoop() {
   if (typeof window === "undefined") return () => {};
   void refreshNotificationPermission();
   const t = setTimeout(() => runReminderCheck(), 3000);
-  const i = setInterval(() => runReminderCheck(), 60 * 60 * 1000);
+  const i = setInterval(() => runReminderCheck(), 15 * 60 * 1000);
   return () => {
     clearTimeout(t);
     clearInterval(i);
