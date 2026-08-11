@@ -71,9 +71,9 @@ import {
 export const Route = createFileRoute("/client/$id")({
   head: () => ({
     meta: [
-      { title: "حساب العميل — دفتر الديون" },
+      { title: "حساب العميل — دفتري" },
       { name: "description", content: "تفاصيل مديونية العميل وعمليات الدين والسداد الخاصة به." },
-      { property: "og:title", content: "حساب العميل — دفتر الديون" },
+      { property: "og:title", content: "حساب العميل — دفتري" },
       {
         property: "og:description",
         content: "تفاصيل مديونية العميل وعمليات الدين والسداد الخاصة به.",
