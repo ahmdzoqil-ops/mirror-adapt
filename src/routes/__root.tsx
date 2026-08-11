@@ -19,6 +19,7 @@ if (import.meta.env.DEV) {
 
 import { Toaster } from "@/components/ui/sonner";
 import { registerServiceWorker } from "@/lib/pwa";
+import { startBackButtonHandler } from "@/lib/back-button";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
@@ -134,6 +135,9 @@ function RootComponent() {
 
   useEffect(() => {
     registerServiceWorker();
+    // مُسجَّل مرة واحدة لكل دورة حياة التطبيق حتى لا يُفقد عند التنقل بين الصفحات
+    const stopBack = startBackButtonHandler();
+    return () => stopBack();
   }, []);
 
   return (

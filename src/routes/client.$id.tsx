@@ -193,23 +193,6 @@ function ClientPage() {
             <DropdownMenuItem onSelect={() => void shareAccount()}>
               <Share2 className="size-4" /> مشاركة الرابط
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                const next = client.archived !== true;
-                setArchived(client.id, next);
-                toast.success(next ? "تمت أرشفة العميل" : "تمت إعادة العميل إلى المديونية");
-              }}
-            >
-              {client.archived ? (
-                <>
-                  <ArchiveRestore className="size-4" /> إلغاء الأرشفة
-                </>
-              ) : (
-                <>
-                  <Archive className="size-4" /> أرشفة العميل
-                </>
-              )}
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => runProtected("reset")}>
               <Eraser className="size-4" /> تصفير الحساب
