@@ -2,8 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
-  Archive,
-  ArchiveRestore,
   BellOff,
   Contact,
   Eraser,
@@ -64,7 +62,6 @@ import {
   removeAlert,
   resetClientAccount,
   setAlert,
-  setArchived,
   updateClient,
   useAppState,
   type Client,
