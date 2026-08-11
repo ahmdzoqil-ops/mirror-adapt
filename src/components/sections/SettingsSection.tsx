@@ -55,6 +55,7 @@ import {
 } from "@/lib/store";
 import {
   biometricSupported,
+  biometricAvailable,
   clearBiometric,
   hasBiometricCredential,
   registerBiometric,
@@ -69,6 +70,7 @@ import {
   createBackup,
   deleteBackup,
   downloadBackup,
+  backupFileName,
   formatSize,
   listBackups,
   restoreBackup,
@@ -102,7 +104,7 @@ export function SettingsSection() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `دفتر-الديون-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = backupFileName();
     a.click();
     URL.revokeObjectURL(url);
     toast.success("تم إنشاء النسخة الاحتياطية");
@@ -126,8 +128,8 @@ export function SettingsSection() {
       updateSettings({ biometric: false });
       return;
     }
-    if (!biometricSupported()) {
-      toast.error("جهازك لا يدعم البصمة في المتصفح");
+    if (!biometricSupported() || !(await biometricAvailable())) {
+      toast.error("لا توجد بصمة مسجّلة أو مدعومة على هذا الجهاز");
       return;
     }
     const ok = hasBiometricCredential() || (await registerBiometric(settings.userName));
@@ -204,6 +206,25 @@ export function SettingsSection() {
             }}
           />
         </Row>
+        {settings.sensitiveLock && (
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            <p className="text-xs text-muted-foreground">
+              حذف العميل وتصفير حسابه محميان دائمًا. اختر ما تريد حمايته إضافيًا:
+            </p>
+            <Row label="حذف العملية" hint="طلب الرمز عند حذف عملية دين أو سداد">
+              <Switch
+                checked={settings.sensitiveDelete}
+                onCheckedChange={(v) => updateSettings({ sensitiveDelete: v })}
+              />
+            </Row>
+            <Row label="تعديل العملية" hint="طلب الرمز عند تعديل عملية">
+              <Switch
+                checked={settings.sensitiveEdit}
+                onCheckedChange={(v) => updateSettings({ sensitiveEdit: v })}
+              />
+            </Row>
+          </div>
+        )}
         <Row label="البصمة" hint="فتح سريع بالبصمة بدل الرمز">
           <Switch
             checked={settings.biometric}
