@@ -16,6 +16,7 @@ import {
   addDebt,
   addPayment,
   balanceOf,
+  suggestableClients,
   updateTxn,
   useAppState,
   type Scope,
@@ -65,13 +66,13 @@ export function TxnDialog({
 
   const suggestions = useMemo(() => {
     if (!name.trim() || clientId) return [];
-    return state.clients
+    return suggestableClients(state)
       .map((c) => ({ c, score: matchScore(name, c.name) }))
       .filter((r) => r.score > 0.5)
       .sort((a, b) => b.score - a.score)
       .slice(0, 5)
       .map((r) => r.c);
-  }, [name, clientId, state.clients]);
+  }, [name, clientId, state]);
 
   function submit() {
     const value = Number(amount);
@@ -91,7 +92,6 @@ export function TxnDialog({
         note: note.trim(),
         photos,
       });
-      toast.success("تم حفظ التعديل");
     } else {
       const payload = {
         ...(clientId ? { clientId } : { clientName: name }),
@@ -101,13 +101,8 @@ export function TxnDialog({
         note: note.trim(),
         photos,
       };
-      if (kind === "debt") {
-        addDebt(payload);
-        toast.success("تم تسجيل الدين");
-      } else {
-        addPayment(payload);
-        toast.success("تم تسجيل السداد");
-      }
+      if (kind === "debt") addDebt(payload);
+      else addPayment(payload);
     }
     onOpenChange(false);
   }

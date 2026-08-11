@@ -21,7 +21,6 @@ import { SettingsSection } from "@/components/sections/SettingsSection";
 import { loadState } from "@/lib/store";
 import { startReminderLoop } from "@/lib/notify";
 import { startBackupLoop } from "@/lib/backup";
-import { startBackButtonHandler } from "@/lib/back-button";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -54,10 +53,13 @@ const TABS = [
 
 type TabId = (typeof TABS)[number]["id"];
 
+/** شاشة البدء تُعرض مرة واحدة فقط عند تشغيل التطبيق (لا تتكرر عند الرجوع) */
+let splashShown = false;
+
 function Index() {
   const [tab, setTab] = useState<TabId>("daily");
   const [ready, setReady] = useState(false);
-  const [splash, setSplash] = useState(true);
+  const [splash, setSplash] = useState(!splashShown);
   const [fabOpen, setFabOpen] = useState(false);
   const [dialog, setDialog] = useState<TxnKind | null>(null);
   const swipe = useRef<{ x: number; y: number; ok: boolean } | null>(null);
@@ -67,11 +69,9 @@ function Index() {
     setReady(true);
     const stopReminders = startReminderLoop();
     const stopBackups = startBackupLoop();
-    const stopBack = startBackButtonHandler();
     return () => {
       stopReminders();
       stopBackups();
-      stopBack();
     };
   }, []);
 
@@ -102,7 +102,14 @@ function Index() {
 
   return (
     <AppLock>
-      {splash && <SplashScreen onDone={() => setSplash(false)} />}
+      {splash && (
+        <SplashScreen
+          onDone={() => {
+            splashShown = true;
+            setSplash(false);
+          }}
+        />
+      )}
       <div className="min-h-screen bg-background pb-28">
         <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/90 px-4 py-3 backdrop-blur">
           <div className="min-w-0 flex-1">

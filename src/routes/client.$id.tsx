@@ -2,8 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
-  Archive,
-  ArchiveRestore,
   BellOff,
   Contact,
   Eraser,
@@ -64,7 +62,6 @@ import {
   removeAlert,
   resetClientAccount,
   setAlert,
-  setArchived,
   updateClient,
   useAppState,
   type Client,
@@ -74,9 +71,9 @@ import {
 export const Route = createFileRoute("/client/$id")({
   head: () => ({
     meta: [
-      { title: "حساب العميل — دفتر الديون" },
+      { title: "حساب العميل — دفتري" },
       { name: "description", content: "تفاصيل مديونية العميل وعمليات الدين والسداد الخاصة به." },
-      { property: "og:title", content: "حساب العميل — دفتر الديون" },
+      { property: "og:title", content: "حساب العميل — دفتري" },
       {
         property: "og:description",
         content: "تفاصيل مديونية العميل وعمليات الدين والسداد الخاصة به.",
@@ -192,23 +189,6 @@ function ClientPage() {
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => void shareAccount()}>
               <Share2 className="size-4" /> مشاركة الرابط
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => {
-                const next = client.archived !== true;
-                setArchived(client.id, next);
-                toast.success(next ? "تمت أرشفة العميل" : "تمت إعادة العميل إلى المديونية");
-              }}
-            >
-              {client.archived ? (
-                <>
-                  <ArchiveRestore className="size-4" /> إلغاء الأرشفة
-                </>
-              ) : (
-                <>
-                  <Archive className="size-4" /> أرشفة العميل
-                </>
-              )}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => runProtected("reset")}>

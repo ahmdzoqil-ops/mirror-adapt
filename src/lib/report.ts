@@ -250,9 +250,12 @@ export function reportHtml(d: ReportData) {
     </div>
 
     <!-- التذييل -->
-    <div style="margin-top:34px;border-top:1px solid ${C.line};padding-top:12px;display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:${C.soft}">
-      <span>تطبيق «دفتري» لإدارة الديون — يعمل بالكامل بدون إنترنت وبياناتك محفوظة على جهازك.</span>
-      <span>${esc(formatDateShort(d.issuedAt))}</span>
+    <div style="margin-top:34px;border-top:1px solid ${C.line};padding-top:14px;display:flex;justify-content:space-between;align-items:center;gap:14px;font-size:13px;color:${C.soft}">
+      <span style="display:flex;align-items:center;gap:10px">
+        <img src="/icon-192.png" style="width:30px;height:30px;border-radius:8px;object-fit:cover"/>
+        <span style="font-size:13px;font-weight:600">تطبيق «دفتري» لإدارة الديون — يعمل بالكامل بدون إنترنت وبياناتك محفوظة على جهازك.</span>
+      </span>
+      <span style="font-size:13px;white-space:nowrap">${esc(formatDateShort(d.issuedAt))}</span>
     </div>
   </div>`;
 }

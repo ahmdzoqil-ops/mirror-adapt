@@ -35,6 +35,10 @@ export type Settings = {
   lockEnabled: boolean;
   /** طلب الرمز للعمليات الحساسة (مستقل تمامًا عن قفل الفتح) */
   sensitiveLock: boolean;
+  /** طلب الرمز عند تعديل عملية (ضمن حماية العمليات) */
+  sensitiveEdit: boolean;
+  /** طلب الرمز عند حذف عملية (ضمن حماية العمليات) */
+  sensitiveDelete: boolean;
   /** رمز الحماية */
   pin: string | null;
   biometric: boolean;
@@ -110,6 +114,8 @@ export const defaultState: AppState = {
   settings: {
     lockEnabled: false,
     sensitiveLock: true,
+    sensitiveEdit: false,
+    sensitiveDelete: true,
     pin: null,
     biometric: false,
     onboarded: false,
@@ -492,6 +498,19 @@ export function clientName(s: AppState, id: string) {
   return clientById(s, id)?.name ?? "—";
 }
 
+/**
+ * العملاء الذين يصح اقتراح أسمائهم:
+ * عميل في المديونية أو له عملية فعلية غير محذوفة.
+ * (العميل المحذوف يختفي أصلًا، والعميل الذي حُذفت كل عملياته لا يُقترح.)
+ */
+export function suggestableClients(s: AppState): Client[] {
+  const withTxns = new Set([
+    ...s.debts.map((t) => t.clientId),
+    ...s.payments.map((t) => t.clientId),
+  ]);
+  return s.clients.filter((c) => c.ledger || withTxns.has(c.id));
+}
+
 /* ============ تنبيهات ============ */
 
 /** آخر عملية سداد للعميل (ISO) أو undefined */
@@ -526,7 +545,7 @@ export function dueReminders(s: AppState): Reminder[] {
 
   if (s.settings.notifyLedger) {
     for (const c of s.clients) {
-      if (!c.ledger || c.notifyMuted) continue;
+      if (!c.ledger || c.notifyMuted || c.archived) continue;
       const bal = balanceOf(s, c.id);
       if (bal <= 0) continue;
       const { debts } = accountTxns(s, c.id);
@@ -546,23 +565,33 @@ export function dueReminders(s: AppState): Reminder[] {
   }
 
   if (s.settings.notifyDaily) {
+    /** ديون اليومية تُجمَّع لكل عميل في تنبيه واحد */
+    const perClient = new Map<string, { amount: number; days: number }>();
     for (const d of s.debts) {
       if (d.scope !== "daily") continue;
       const c = s.clients.find((x) => x.id === d.clientId);
-      if (!c || c.notifyMuted) continue;
+      // عميل المديونية له تنبيه مديونية واحد — لا يتكرر في تنبيهات اليومية
+      if (!c || c.notifyMuted || c.archived || c.ledger) continue;
       const paid = s.payments
         .filter((p) => p.clientId === d.clientId && +new Date(p.at) >= +new Date(d.at))
         .reduce((a, p) => a + p.amount, 0);
       if (paid >= d.amount) continue;
       const days = daysSince(d.at);
       if (days >= (c.notifyDays ?? s.settings.notifyDailyDays)) {
-        out.push({
-          key: `daily-${d.id}-${today}`,
-          clientId: c.id,
-          title: `دين لم يُسدَّد: ${c.name}`,
-          body: `مضى ${days} يومًا على دين بقيمة ${d.amount}`,
+        const prev = perClient.get(c.id);
+        perClient.set(c.id, {
+          amount: (prev?.amount ?? 0) + (d.amount - paid),
+          days: Math.max(prev?.days ?? 0, days),
         });
       }
+    }
+    for (const [clientId, agg] of perClient) {
+      out.push({
+        key: `daily-${clientId}-${today}`,
+        clientId,
+        title: `دين لم يُسدَّد: ${clientName(s, clientId)}`,
+        body: `مضى ${agg.days} يومًا على دين بقيمة ${agg.amount}`,
+      });
     }
   }
 
@@ -698,6 +727,7 @@ export function bellItems(s: AppState): BellItem[] {
   const withRule = new Set<string>();
 
   for (const a of activeAlerts(s)) {
+    if (a.client.archived) continue;
     withRule.add(a.client.id);
     out.push({
       key: `rule-${a.client.id}-${today}`,

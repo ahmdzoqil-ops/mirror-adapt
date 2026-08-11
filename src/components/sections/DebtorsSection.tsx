@@ -1,8 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Archive, ArchiveRestore, Contact, Search, UserPlus, Users } from "lucide-react";
+import { Archive, Contact, Search, UserPlus, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +37,54 @@ export function DebtorsSection() {
   const [query, setQuery] = useState("");
   const [addOpen, setAddOpen] = useState(false);
   const [view, setView] = useState<"active" | "archive">("active");
+  /** الأرشفة/إلغاؤها بالضغط المطوّل فقط */
+  const [pending, setPending] = useState<{ id: string; name: string; archive: boolean } | null>(
+    null,
+  );
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressed = useRef(false);
+
+  function pressStart(id: string, name: string, archive: boolean) {
+    longPressed.current = false;
+    timer.current = setTimeout(() => {
+      longPressed.current = true;
+      if (navigator.vibrate) navigator.vibrate(15);
+      setPending({ id, name, archive });
+    }, 450);
+  }
+
+  function pressEnd() {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  }
+
+  const confirmDialog = (
+    <AlertDialog open={pending !== null} onOpenChange={(v) => !v && setPending(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {pending?.archive ? "أرشفة العميل؟" : "إلغاء أرشفة العميل؟"}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {pending?.archive
+              ? `سيختفي «${pending?.name}» من قائمة المديونية النشطة مع بقاء بياناته وديونه ورصيده كما هي.`
+              : `سيعود «${pending?.name}» إلى قائمة المديونية النشطة.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>إلغاء</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (pending) setArchived(pending.id, pending.archive);
+              setPending(null);
+            }}
+          >
+            تأكيد
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 
   const debtors = useMemo(() => {
     const list = state.clients
@@ -66,11 +124,19 @@ export function DebtorsSection() {
           />
         )}
         {archived.map((c) => (
-          <div key={c.id} className="card-soft space-y-3 p-3">
+          <div key={c.id} className="card-soft p-3">
             <Link
               to="/client/$id"
               params={{ id: c.id }}
-              className="flex items-center gap-3"
+              className="flex items-center gap-3 select-none"
+              onPointerDown={() => pressStart(c.id, c.name, false)}
+              onPointerUp={pressEnd}
+              onPointerLeave={pressEnd}
+              onPointerCancel={pressEnd}
+              onContextMenu={(e) => e.preventDefault()}
+              onClick={(e) => {
+                if (longPressed.current) e.preventDefault();
+              }}
             >
               <ClientAvatar name={c.name} photo={c.photo} size="md" />
               <div className="min-w-0 flex-1">
@@ -81,17 +147,12 @@ export function DebtorsSection() {
                 <Money value={balanceOf(state, c.id)} />
               </span>
             </Link>
-            <button
-              onClick={() => {
-                setArchived(c.id, false);
-                toast.success("تمت إعادة العميل إلى المديونية");
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-secondary p-3 text-sm font-semibold"
-            >
-              <ArchiveRestore className="size-4" /> إلغاء الأرشفة
-            </button>
           </div>
         ))}
+        <p className="px-1 text-center text-[11px] text-muted-foreground">
+          اضغط مطوّلًا على العميل لإلغاء الأرشفة.
+        </p>
+        {confirmDialog}
       </div>
     );
   }
@@ -142,7 +203,15 @@ export function DebtorsSection() {
           key={client.id}
           to="/client/$id"
           params={{ id: client.id }}
-          className="card-soft flex items-center gap-3 p-4 transition-colors active:bg-secondary/60"
+          className="card-soft flex select-none items-center gap-3 p-4 transition-colors active:bg-secondary/60"
+          onPointerDown={() => pressStart(client.id, client.name, true)}
+          onPointerUp={pressEnd}
+          onPointerLeave={pressEnd}
+          onPointerCancel={pressEnd}
+          onContextMenu={(e) => e.preventDefault()}
+          onClick={(e) => {
+            if (longPressed.current) e.preventDefault();
+          }}
         >
           <ClientAvatar name={client.name} photo={client.photo} size="md" />
           <div className="min-w-0 flex-1">
@@ -163,6 +232,7 @@ export function DebtorsSection() {
       ))}
 
       <AddClientDialog open={addOpen} onOpenChange={setAddOpen} />
+      {confirmDialog}
     </div>
   );
 }
