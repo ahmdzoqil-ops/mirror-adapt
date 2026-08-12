@@ -640,7 +640,7 @@ function backupTime(iso: string) {
   })}`;
 }
 
-function BackupManager() {
+function BackupManager({ mode = "summary" }: { mode?: "summary" | "list" }) {
   const backups = useSyncExternalStore(subscribeBackups, listBackups, () => []);
   const [confirm, setConfirm] = useState<{ id: string; action: "restore" | "delete" } | null>(
     null,
@@ -649,6 +649,8 @@ function BackupManager() {
 
   return (
     <div className="space-y-3">
+      {mode === "summary" && (
+        <>
       {/* آخر نسخة احتياطية */}
       <div className="rounded-xl border border-border bg-secondary/40 p-3">
         <p className="text-xs font-semibold text-muted-foreground">آخر نسخة احتياطية</p>
@@ -677,12 +679,15 @@ function BackupManager() {
       >
         <Download className="size-4" /> إنشاء نسخة احتياطية الآن
       </Button>
-
-      {backups.length > 0 && (
-        <p className="px-1 text-xs font-semibold text-muted-foreground">النسخ المحفوظة</p>
+        </>
       )}
 
-      {backups.map((b, idx) => (
+      {mode === "list" && backups.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">لا توجد نسخ محفوظة بعد</p>
+      )}
+
+      {mode === "list" &&
+        backups.map((b, idx) => (
         <div key={b.id} className="flex items-center gap-2 rounded-xl border border-border p-3">
           <div className="min-w-0 flex-1">
             <p className="num text-sm font-bold">
