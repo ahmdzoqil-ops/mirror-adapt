@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell,
+  Camera,
   Code2,
   Download,
   Fingerprint,
+  ImagePlus,
   KeyRound,
   Mail,
   MessageCircle,
@@ -43,7 +45,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { PhotoInput } from "@/components/PhotoInput";
+import { compressFile } from "@/lib/image";
 import { VerifyDialog } from "@/components/AppLock";
 import { TrashSection } from "@/components/sections/TrashSection";
 import {
