@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { Bell, BellRing, CalendarClock, Clock, Users, X } from "lucide-react";
 import {
@@ -15,6 +15,7 @@ import {
   type BellItem,
 } from "@/lib/store";
 import { Money } from "@/components/Riyal";
+import { markSeen, seenKeys, seenServer, subscribeSeen } from "@/lib/bell-seen";
 
 function relative(iso: string) {
   const diff = +new Date(iso) - Date.now();
@@ -92,7 +93,15 @@ export function AlertsCenter() {
   const items = bellItems(state);
   const daily = items.filter((i) => i.group === "daily");
   const ledger = items.filter((i) => i.group === "ledger");
-  const dueCount = items.filter((i) => i.due).length;
+  const seen = useSyncExternalStore(subscribeSeen, seenKeys, seenServer);
+  const seenSet = new Set(seen);
+  /** العداد للتنبيهات غير المقروءة فقط — يصبح صفرًا عند فتح الجرس ويعود مع الجديد */
+  const unread = items.filter((i) => !seenSet.has(i.key));
+
+  // عند فتح الجرس: تُعتبر كل التنبيهات المعروضة مقروءة (لكنها تبقى ظاهرة)
+  useEffect(() => {
+    if (open) markSeen(items.map((i) => i.key));
+  }, [open, items]);
 
   return (
     <>
@@ -101,14 +110,14 @@ export function AlertsCenter() {
         aria-label="مركز التنبيهات"
         className="relative rounded-xl p-2 text-muted-foreground transition-colors hover:bg-secondary"
       >
-        {dueCount > 0 ? (
+        {unread.length > 0 ? (
           <BellRing className="size-6 text-primary" />
         ) : (
           <Bell className="size-6" />
         )}
-        {items.length > 0 && (
+        {unread.length > 0 && (
           <span className="num absolute -top-0.5 -left-0.5 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-bold text-destructive-foreground">
-            {items.length}
+            {unread.length}
           </span>
         )}
       </button>
