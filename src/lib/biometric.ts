@@ -55,7 +55,8 @@ export function biometricSupported() {
 
 export function hasBiometricCredential() {
   if (typeof window === "undefined") return false;
-  if (isNative()) return localStorage.getItem(NATIVE_KEY) === "1";
+  // داخل التطبيق الأصلي لا نحتاج بيانات اعتماد مخزّنة — النظام يتكفّل بالمصادقة
+  if (isNative()) return true;
   return !!localStorage.getItem(CRED_KEY);
 }
 
@@ -109,7 +110,6 @@ export async function registerBiometric(userName: string): Promise<boolean> {
 
 export async function verifyBiometric(): Promise<boolean> {
   if (isNative()) {
-    if (localStorage.getItem(NATIVE_KEY) !== "1") return false;
     try {
       const api = await nativeApi();
       await api.authenticate({
@@ -119,6 +119,7 @@ export async function verifyBiometric(): Promise<boolean> {
         androidSubtitle: "افتح باستخدام البصمة",
         allowDeviceCredential: true,
       });
+      localStorage.setItem(NATIVE_KEY, "1");
       return true;
     } catch {
       return false;

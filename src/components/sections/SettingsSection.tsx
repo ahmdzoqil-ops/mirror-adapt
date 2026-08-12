@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Bell,
+  Camera,
   Code2,
   Download,
   Fingerprint,
+  ImagePlus,
   KeyRound,
   Mail,
   MessageCircle,
@@ -43,7 +45,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { PhotoInput } from "@/components/PhotoInput";
+import { compressFile } from "@/lib/image";
 import { VerifyDialog } from "@/components/AppLock";
 import { TrashSection } from "@/components/sections/TrashSection";
 import {
@@ -89,6 +91,7 @@ export function SettingsSection() {
   const [pinOpen, setPinOpen] = useState(false);
   const [verify, setVerify] = useState<"lock" | "sensitive" | null>(null);
   const [showTrash, setShowTrash] = useState(false);
+  const [showBackups, setShowBackups] = useState(false);
   const [perm, setPerm] = useState<ReturnType<typeof notificationPermission>>(() =>
     notificationPermission(),
   );
@@ -163,6 +166,25 @@ export function SettingsSection() {
           رجوع إلى الإعدادات
         </button>
         <TrashSection />
+      </div>
+    );
+  }
+
+  if (showBackups) {
+    return (
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowBackups(false)}
+          className="flex items-center gap-2 rounded-xl bg-secondary px-4 py-2 text-sm font-semibold"
+        >
+          رجوع إلى الإعدادات
+        </button>
+        <Section title="النسخ المحفوظة" icon={<Download className="size-4" />}>
+          <p className="text-xs text-muted-foreground">
+            جميع النسخ مرتّبة من الأحدث إلى الأقدم — يمكنك استعادتها أو تصديرها أو حذفها.
+          </p>
+          <BackupManager mode="list" />
+        </Section>
       </div>
     );
   }
@@ -325,6 +347,9 @@ export function SettingsSection() {
       {/* ===== النسخ الاحتياطي ===== */}
       <Section title="النسخ الاحتياطي" icon={<Download className="size-4" />}>
         <BackupManager />
+        <Button variant="secondary" className="w-full" onClick={() => setShowBackups(true)}>
+          <RotateCcw className="size-4" /> النسخ المحفوظة
+        </Button>
         <div className="grid grid-cols-2 gap-2">
           <Button variant="secondary" onClick={exportBackup}>
             <Download className="size-4" /> تصدير ملف
@@ -429,37 +454,98 @@ function DevLink({
 
 function ProfileCard() {
   const { settings } = useAppState();
-  const logos = settings.logo ? [settings.logo] : [];
+  const camRef = useRef<HTMLInputElement>(null);
+  const galRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function pick(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    setBusy(true);
+    try {
+      updateSettings({ logo: await compressFile(file) });
+    } catch {
+      toast.error("تعذر معالجة الصورة");
+    }
+    setBusy(false);
+  }
 
   return (
     <div className="card-soft overflow-hidden">
       <div className="bg-primary p-4 text-primary-foreground">
         <div className="flex items-center gap-3">
-          {settings.logo ? (
-            <img
-              src={settings.logo}
-              alt="شعار المتجر"
-              className="size-14 rounded-2xl border border-primary-foreground/20 object-cover"
-            />
-          ) : (
-            <div className="flex size-14 items-center justify-center rounded-2xl bg-primary-foreground/15">
-              <User className="size-6" />
-            </div>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="تغيير صورة المتجر"
+              disabled={busy}
+              className="relative shrink-0 rounded-2xl outline-none"
+            >
+              {settings.logo ? (
+                <img
+                  src={settings.logo}
+                  alt="شعار المتجر"
+                  className="size-16 rounded-2xl border border-primary-foreground/25 object-cover"
+                />
+              ) : (
+                <div className="flex size-16 items-center justify-center rounded-2xl border border-primary-foreground/25 bg-primary-foreground/15">
+                  <User className="size-7" />
+                </div>
+              )}
+              <span className="absolute -bottom-1 -left-1 flex size-6 items-center justify-center rounded-full bg-primary-foreground text-primary shadow">
+                <Camera className="size-3.5" />
+              </span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onSelect={() => camRef.current?.click()}>
+                <Camera className="size-4" /> الكاميرا
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => galRef.current?.click()}>
+                <ImagePlus className="size-4" /> المعرض
+              </DropdownMenuItem>
+              {settings.logo && (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => updateSettings({ logo: "" })}
+                >
+                  <Trash2 className="size-4" /> حذف الصورة
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <input
+            ref={camRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              void pick(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <input
+            ref={galRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              void pick(e.target.files);
+              e.target.value = "";
+            }}
+          />
+
           <div className="min-w-0">
             <p className="truncate text-lg font-extrabold">
               {settings.shopName || settings.userName || "بيانات المتجر"}
             </p>
             <p className="num text-xs opacity-85">{settings.userPhone || "أضف رقم التواصل"}</p>
+            {busy && <p className="text-[11px] opacity-85">جارٍ معالجة الصورة…</p>}
           </div>
         </div>
       </div>
 
       <div className="space-y-3 p-4">
-        <div className="space-y-2">
-          <Label>شعار المتجر</Label>
-          <PhotoInput photos={logos} onChange={(p) => updateSettings({ logo: p[0] ?? "" })} single />
-        </div>
         <div className="space-y-2">
           <Label htmlFor="shop">اسم المتجر / النشاط</Label>
           <Input
@@ -640,7 +726,7 @@ function backupTime(iso: string) {
   })}`;
 }
 
-function BackupManager() {
+function BackupManager({ mode = "summary" }: { mode?: "summary" | "list" }) {
   const backups = useSyncExternalStore(subscribeBackups, listBackups, () => []);
   const [confirm, setConfirm] = useState<{ id: string; action: "restore" | "delete" } | null>(
     null,
@@ -649,6 +735,8 @@ function BackupManager() {
 
   return (
     <div className="space-y-3">
+      {mode === "summary" && (
+        <>
       {/* آخر نسخة احتياطية */}
       <div className="rounded-xl border border-border bg-secondary/40 p-3">
         <p className="text-xs font-semibold text-muted-foreground">آخر نسخة احتياطية</p>
@@ -677,12 +765,15 @@ function BackupManager() {
       >
         <Download className="size-4" /> إنشاء نسخة احتياطية الآن
       </Button>
-
-      {backups.length > 0 && (
-        <p className="px-1 text-xs font-semibold text-muted-foreground">النسخ المحفوظة</p>
+        </>
       )}
 
-      {backups.map((b, idx) => (
+      {mode === "list" && backups.length === 0 && (
+        <p className="py-6 text-center text-sm text-muted-foreground">لا توجد نسخ محفوظة بعد</p>
+      )}
+
+      {mode === "list" &&
+        backups.map((b, idx) => (
         <div key={b.id} className="flex items-center gap-2 rounded-xl border border-border p-3">
           <div className="min-w-0 flex-1">
             <p className="num text-sm font-bold">

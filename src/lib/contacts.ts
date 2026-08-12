@@ -36,20 +36,33 @@ export async function pickContactDetailed(): Promise<PickResult> {
   if (isNative()) {
     try {
       const { Contacts } = await import("@capacitor-community/contacts");
-      let perm = await Contacts.checkPermissions();
-      if (perm.contacts !== "granted") perm = await Contacts.requestPermissions();
-      if (perm.contacts !== "granted") return { ok: false, reason: "denied" };
-      const res = await Contacts.pickContact({ projection: { name: true, phones: true } });
+      // منتقي جهات الاتصال الأصلي لا يحتاج إذنًا، لكن قراءة الحقول تحتاجه
+      let perm = await Contacts.checkPermissions().catch(() => null);
+      if (!perm || perm.contacts !== "granted") {
+        perm = await Contacts.requestPermissions().catch(() => null);
+      }
+      if (!perm || perm.contacts !== "granted") return { ok: false, reason: "denied" };
+
+      const res = await Contacts.pickContact({
+        projection: { name: true, phones: true },
+      });
       const c = res?.contact;
       if (!c) return { ok: false, reason: "cancelled" };
+      const display =
+        c.name?.display ??
+        [c.name?.given, c.name?.family].filter(Boolean).join(" ").trim();
       return {
         ok: true,
         contact: {
-          name: c.name?.display ?? "",
+          name: display || "",
           phone: (c.phones?.[0]?.number ?? "").replace(/\s+/g, ""),
         },
       };
-    } catch {
+    } catch (e) {
+      const msg = String((e as Error)?.message ?? e);
+      // إلغاء المستخدم للمنتقي يصل كخطأ في بعض إصدارات أندرويد
+      if (/cancel/i.test(msg)) return { ok: false, reason: "cancelled" };
+      if (/permission|denied/i.test(msg)) return { ok: false, reason: "denied" };
       return { ok: false, reason: "error" };
     }
   }

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CalendarDays,
   HandCoins,
@@ -62,7 +62,6 @@ function Index() {
   const [splash, setSplash] = useState(!splashShown);
   const [fabOpen, setFabOpen] = useState(false);
   const [dialog, setDialog] = useState<TxnKind | null>(null);
-  const swipe = useRef<{ x: number; y: number; ok: boolean } | null>(null);
 
   useEffect(() => {
     loadState();
@@ -76,29 +75,6 @@ function Index() {
   }, []);
 
   if (!ready) return <div className="min-h-screen bg-background" />;
-
-  /** التنقل بين الأقسام بالسحب الأفقي الواضح فقط */
-  function onTouchStart(e: React.TouchEvent) {
-    const t = e.touches[0];
-    if (!t) return;
-    const el = e.target as HTMLElement;
-    const blocked = !!el.closest("[data-no-swipe],input,textarea,select,[role='dialog']");
-    swipe.current = { x: t.clientX, y: t.clientY, ok: !blocked };
-  }
-
-  function onTouchEnd(e: React.TouchEvent) {
-    const s = swipe.current;
-    swipe.current = null;
-    const t = e.changedTouches[0];
-    if (!s || !s.ok || !t) return;
-    const dx = t.clientX - s.x;
-    const dy = t.clientY - s.y;
-    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 2) return;
-    const idx = TABS.findIndex((x) => x.id === tab);
-    const next = dx < 0 ? idx + 1 : idx - 1;
-    const target = TABS[next];
-    if (target) setTab(target.id);
-  }
 
   return (
     <AppLock>
@@ -122,11 +98,7 @@ function Index() {
         </header>
 
 
-        <main
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
-          className="mx-auto max-w-2xl animate-in fade-in-0 duration-200 p-4"
-        >
+        <main className="mx-auto max-w-2xl animate-in fade-in-0 duration-200 p-4">
           {tab === "daily" && <DailySection />}
           {tab === "debtors" && <DebtorsSection />}
           {tab === "payments" && <PaymentsSection />}
