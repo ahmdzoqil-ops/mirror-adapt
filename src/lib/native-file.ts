@@ -154,6 +154,8 @@ export async function shareText(title: string, text: string, url?: string): Prom
 }
 
 /** مكان الحفظ بصيغة مفهومة للمستخدم */
-export function whereLabel(where: SaveResult extends { ok: true } ? never : string) {
-  return where === "downloads" ? "مجلد التنزيلات" : "مجلد المستندات";
+export function whereLabel(where: string) {
+  if (where === "downloads") return "مجلد التنزيلات";
+  if (where === "documents") return "مجلد المستندات › دفتري";
+  return "ملفات الجهاز";
 }
