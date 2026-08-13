@@ -132,15 +132,15 @@ export function SettingsSection() {
       return;
     }
     if (!biometricSupported() || !(await biometricAvailable())) {
-      toast.error("لا توجد بصمة مسجّلة أو مدعومة على هذا الجهاز");
+      toast.error(lastBiometricError() || "لا توجد بصمة مسجّلة أو مدعومة على هذا الجهاز");
       return;
     }
-    const ok = hasBiometricCredential() || (await registerBiometric(settings.userName));
+    const ok = await registerBiometric(settings.userName);
     if (ok) {
       updateSettings({ biometric: true });
       toast.success("تم تفعيل البصمة");
     } else {
-      toast.error("تعذر تفعيل البصمة");
+      toast.error(lastBiometricError() || "تعذر تفعيل البصمة");
     }
   }
 
