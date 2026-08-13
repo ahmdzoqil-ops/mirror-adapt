@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ClientIdRouteImport } from './routes/client.$id'
 import { Route as ShareIndexRouteImport } from './routes/share.index'
+import { Route as ShareTokenRouteImport } from './routes/share.$token'
 import { Route as ApiPublicShareRouteImport } from './routes/api/public/share'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const ShareIndexRoute = ShareIndexRouteImport.update({
   path: '/share/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShareTokenRoute = ShareTokenRouteImport.update({
+  id: '/share/$token',
+  path: '/share/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicShareRoute = ApiPublicShareRouteImport.update({
   id: '/api/public/share',
   path: '/api/public/share',
@@ -38,12 +44,14 @@ const ApiPublicShareRoute = ApiPublicShareRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/client/$id': typeof ClientIdRoute
+  '/share/$token': typeof ShareTokenRoute
   '/share/': typeof ShareIndexRoute
   '/api/public/share': typeof ApiPublicShareRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/client/$id': typeof ClientIdRoute
+  '/share/$token': typeof ShareTokenRoute
   '/share': typeof ShareIndexRoute
   '/api/public/share': typeof ApiPublicShareRoute
 }
@@ -51,20 +59,29 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/client/$id': typeof ClientIdRoute
+  '/share/$token': typeof ShareTokenRoute
   '/share/': typeof ShareIndexRoute
   '/api/public/share': typeof ApiPublicShareRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/client/$id' | '/share/' | '/api/public/share'
+  fullPaths:
+    '/' | '/client/$id' | '/share/$token' | '/share/' | '/api/public/share'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/client/$id' | '/share' | '/api/public/share'
-  id: '__root__' | '/' | '/client/$id' | '/share/' | '/api/public/share'
+  to: '/' | '/client/$id' | '/share/$token' | '/share' | '/api/public/share'
+  id:
+    | '__root__'
+    | '/'
+    | '/client/$id'
+    | '/share/$token'
+    | '/share/'
+    | '/api/public/share'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ClientIdRoute: typeof ClientIdRoute
+  ShareTokenRoute: typeof ShareTokenRoute
   ShareIndexRoute: typeof ShareIndexRoute
   ApiPublicShareRoute: typeof ApiPublicShareRoute
 }
@@ -92,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShareIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/share/$token': {
+      id: '/share/$token'
+      path: '/share/$token'
+      fullPath: '/share/$token'
+      preLoaderRoute: typeof ShareTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/share': {
       id: '/api/public/share'
       path: '/api/public/share'
@@ -105,6 +129,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ClientIdRoute: ClientIdRoute,
+  ShareTokenRoute: ShareTokenRoute,
   ShareIndexRoute: ShareIndexRoute,
   ApiPublicShareRoute: ApiPublicShareRoute,
 }
