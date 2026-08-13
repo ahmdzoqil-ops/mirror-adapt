@@ -58,6 +58,7 @@ import {
 import {
   biometricSupported,
   biometricAvailable,
+  lastBiometricError,
   clearBiometric,
   hasBiometricCredential,
   registerBiometric,
@@ -101,16 +102,18 @@ export function SettingsSection() {
     void refreshNotificationPermission().then(setPerm);
   }, []);
 
-  function exportBackup() {
+  async function exportBackup() {
     const data = JSON.stringify(getState(), null, 2);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = backupFileName();
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("تم إنشاء النسخة الاحتياطية");
+    const res = await saveFile(
+      new Blob([data], { type: "application/json" }),
+      backupFileName(),
+      data,
+    );
+    if (res.ok)
+      toast.success(
+        res.where === "browser" ? "تم تنزيل النسخة" : `تم حفظ النسخة في ${whereLabel(res.where)}`,
+      );
+    else toast.error("تعذر حفظ الملف على هذا الجهاز");
   }
 
   async function importBackup(file: File) {
@@ -802,7 +805,15 @@ function BackupManager({ mode = "summary" }: { mode?: "summary" | "list" }) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
-                  if (!downloadBackup(b.id)) toast.error("تعذر تصدير النسخة");
+                  void downloadBackup(b.id).then((res) => {
+                    if (res.ok)
+                      toast.success(
+                        res.where === "browser"
+                          ? "تم تنزيل النسخة"
+                          : `تم حفظ النسخة في ${whereLabel(res.where)}`,
+                      );
+                    else toast.error("تعذر تصدير النسخة على هذا الجهاز");
+                  });
                 }}
               >
                 <Download className="size-4" /> تصدير النسخة
