@@ -85,11 +85,27 @@ export type AlertRule = {
 };
 
 /** عنصر في سلة المهملات — يحتفظ بالعملية الأصلية كما هي */
-export type TrashItem = {
+export type TxnTrashItem = {
   kind: "debt" | "payment";
   txn: Txn;
   deletedAt: string;
 };
+
+/** عميل محذوف — يحتفظ ببياناته وكل عملياته حتى تُستعاد كما كانت */
+export type ClientTrashItem = {
+  kind: "client";
+  client: Client;
+  debts: Txn[];
+  payments: Txn[];
+  alerts: AlertRule[];
+  deletedAt: string;
+};
+
+export type TrashItem = TxnTrashItem | ClientTrashItem;
+
+export function isClientTrash(t: TrashItem): t is ClientTrashItem {
+  return t.kind === "client";
+}
 
 export type AppState = {
   clients: Client[];
@@ -168,7 +184,7 @@ export function loadState() {
         clients: (parsed.clients ?? []).map(migrateClient),
         debts: (parsed.debts ?? []).map(migrateTxn),
         payments: (parsed.payments ?? []).map(migrateTxn),
-        trash: (parsed.trash ?? []).filter((t) => t && t.txn && t.kind),
+        trash: (parsed.trash ?? []).filter((t) => t && t.kind && (t.kind === "client" ? !!t.client : !!t.txn)),
         alerts: parsed.alerts ?? [],
         dismissed: (parsed.dismissed ?? []).filter((k) => typeof k === "string"),
         settings: { ...defaultState.settings, ...(parsed.settings ?? {}) },
@@ -338,14 +354,57 @@ export function updateClient(id: string, patch: Partial<Client>) {
   }));
 }
 
-/** حذف العميل مع كل عملياته (قرار يدوي صريح فقط) */
+/** حذف العميل ينقله مع بياناته وكل عملياته إلى سلة المحذوفات */
 export function deleteClient(id: string) {
+  setState((s) => {
+    const client = s.clients.find((c) => c.id === id);
+    if (!client) return s;
+    const item: ClientTrashItem = {
+      kind: "client",
+      client,
+      debts: s.debts.filter((d) => d.clientId === id),
+      payments: s.payments.filter((p) => p.clientId === id),
+      alerts: s.alerts.filter((a) => a.clientId === id),
+      deletedAt: new Date().toISOString(),
+    };
+    return {
+      ...s,
+      clients: s.clients.filter((c) => c.id !== id),
+      debts: s.debts.filter((d) => d.clientId !== id),
+      payments: s.payments.filter((p) => p.clientId !== id),
+      alerts: s.alerts.filter((a) => a.clientId !== id),
+      trash: [item, ...s.trash.filter((t) => isClientTrash(t) || t.txn.clientId !== id)],
+    };
+  });
+}
+
+/** استعادة عميل محذوف مع رصيده وعملياته وتنبيهاته */
+export function restoreClient(id: string) {
+  setState((s) => {
+    const item = s.trash.find((t) => isClientTrash(t) && t.client.id === id) as
+      | ClientTrashItem
+      | undefined;
+    if (!item) return s;
+    const noDup = <T extends { id: string }>(list: T[], add: T[]) => {
+      const have = new Set(list.map((x) => x.id));
+      return [...add.filter((x) => !have.has(x.id)), ...list];
+    };
+    return {
+      ...s,
+      clients: noDup(s.clients, [item.client]),
+      debts: noDup(s.debts, item.debts),
+      payments: noDup(s.payments, item.payments),
+      alerts: noDup(s.alerts, item.alerts),
+      trash: s.trash.filter((t) => !(isClientTrash(t) && t.client.id === id)),
+    };
+  });
+}
+
+/** حذف نهائي للعميل وعملياته من السلة */
+export function purgeClient(id: string) {
   setState((s) => ({
     ...s,
-    clients: s.clients.filter((c) => c.id !== id),
-    debts: s.debts.filter((d) => d.clientId !== id),
-    payments: s.payments.filter((p) => p.clientId !== id),
-    trash: s.trash.filter((t) => t.txn.clientId !== id),
+    trash: s.trash.filter((t) => !(isClientTrash(t) && t.client.id === id)),
   }));
 }
 
@@ -426,18 +485,27 @@ export function deleteTxn(kind: "debt" | "payment", id: string) {
 /** استعادة العملية الأصلية نفسها (بدون نسخة جديدة) */
 export function restoreTxn(id: string) {
   setState((s) => {
-    const item = s.trash.find((t) => t.txn.id === id);
+    const item = s.trash.find((t) => !isClientTrash(t) && t.txn.id === id) as
+      | TxnTrashItem
+      | undefined;
     if (!item) return s;
     const key = item.kind === "debt" ? "debts" : "payments";
     const exists = s[key].some((t) => t.id === id);
     const list = exists ? s[key] : [item.txn, ...s[key]];
-    return { ...s, [key]: list, trash: s.trash.filter((t) => t.txn.id !== id) };
+    return {
+      ...s,
+      [key]: list,
+      trash: s.trash.filter((t) => isClientTrash(t) || t.txn.id !== id),
+    };
   });
 }
 
 /** حذف نهائي لا يمكن التراجع عنه */
 export function purgeTxn(id: string) {
-  setState((s) => ({ ...s, trash: s.trash.filter((t) => t.txn.id !== id) }));
+  setState((s) => ({
+    ...s,
+    trash: s.trash.filter((t) => isClientTrash(t) || t.txn.id !== id),
+  }));
 }
 
 export function clearTrash() {
