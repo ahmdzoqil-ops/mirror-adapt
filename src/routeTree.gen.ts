@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ShareRouteImport } from './routes/share'
 import { Route as ClientIdRouteImport } from './routes/client.$id'
+import { Route as ApiPublicShareRouteImport } from './routes/api/public/share'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +29,44 @@ const ClientIdRoute = ClientIdRouteImport.update({
   path: '/client/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicShareRoute = ApiPublicShareRouteImport.update({
+  id: '/api/public/share',
+  path: '/api/public/share',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/share': typeof ShareRoute
   '/client/$id': typeof ClientIdRoute
+  '/api/public/share': typeof ApiPublicShareRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/share': typeof ShareRoute
   '/client/$id': typeof ClientIdRoute
+  '/api/public/share': typeof ApiPublicShareRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/share': typeof ShareRoute
   '/client/$id': typeof ClientIdRoute
+  '/api/public/share': typeof ApiPublicShareRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/share' | '/client/$id'
+  fullPaths: '/' | '/share' | '/client/$id' | '/api/public/share'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/share' | '/client/$id'
-  id: '__root__' | '/' | '/share' | '/client/$id'
+  to: '/' | '/share' | '/client/$id' | '/api/public/share'
+  id: '__root__' | '/' | '/share' | '/client/$id' | '/api/public/share'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ShareRoute: typeof ShareRoute
   ClientIdRoute: typeof ClientIdRoute
+  ApiPublicShareRoute: typeof ApiPublicShareRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +92,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ClientIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/share': {
+      id: '/api/public/share'
+      path: '/api/public/share'
+      fullPath: '/api/public/share'
+      preLoaderRoute: typeof ApiPublicShareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +106,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ShareRoute: ShareRoute,
   ClientIdRoute: ClientIdRoute,
+  ApiPublicShareRoute: ApiPublicShareRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
