@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { BookOpen, Phone } from "lucide-react";
-import { decodeShare, type SharePayload } from "@/lib/share";
+import { decodeShare, publicBase, type SharePayload } from "@/lib/share";
 import { Money } from "@/components/Riyal";
 
-export const Route = createFileRoute("/share")({
+export const Route = createFileRoute("/share/")({
   head: () => ({
     meta: [
       { title: "متابعة الحساب — دفتري" },
