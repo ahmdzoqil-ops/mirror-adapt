@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Fingerprint, Delete, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAppState } from "@/lib/store";
-import { hasBiometricCredential, verifyBiometric } from "@/lib/biometric";
+import { hasBiometricCredential, lastBiometricError, verifyBiometric } from "@/lib/biometric";
 
 function PinPad({
   title,
@@ -37,13 +38,17 @@ function PinPad({
     return;
   }, [pin, expected, onSuccess]);
 
-  async function tryBiometric() {
+  async function tryBiometric(silent = false) {
     const ok = await verifyBiometric();
-    if (ok) onSuccess();
+    if (ok) {
+      onSuccess();
+      return;
+    }
+    if (!silent) toast.error(lastBiometricError() || "تعذّرت المصادقة بالبصمة");
   }
 
   useEffect(() => {
-    if (allowBiometric && hasBiometricCredential()) void tryBiometric();
+    if (allowBiometric && hasBiometricCredential()) void tryBiometric(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -84,7 +89,7 @@ function PinPad({
           </Button>
         ))}
         {allowBiometric && hasBiometricCredential() ? (
-          <Button variant="secondary" className="h-14" onClick={tryBiometric}>
+          <Button variant="secondary" className="h-14" onClick={() => void tryBiometric()}>
             <Fingerprint className="size-6" />
           </Button>
         ) : (
