@@ -79,6 +79,7 @@ import {
   restoreBackup,
   subscribeBackups,
 } from "@/lib/backup";
+import { saveFile, whereLabel } from "@/lib/native-file";
 
 const DEV = {
   name: "أحمد الصعفاني",
@@ -354,7 +355,7 @@ export function SettingsSection() {
           <RotateCcw className="size-4" /> النسخ المحفوظة
         </Button>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={exportBackup}>
+          <Button variant="secondary" onClick={() => void exportBackup()}>
             <Download className="size-4" /> تصدير ملف
           </Button>
           <Button variant="secondary" onClick={() => fileRef.current?.click()}>
