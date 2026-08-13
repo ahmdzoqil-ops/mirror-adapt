@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { reportHtml, type ReportData } from "@/lib/report";
 import { pdfFileName, reportToPdfBlob, savePdf, sharePdf } from "@/lib/pdf";
+import { whereLabel } from "@/lib/native-file";
 
 export function ReportDialog({
   open,
@@ -34,11 +35,20 @@ export function ReportDialog({
       const blob = await reportToPdfBlob(data);
       const name = pdfFileName(data);
       if (mode === "save") {
-        savePdf(blob, name);
-        toast.success("تم حفظ ملف PDF");
+        const res = await savePdf(blob, name);
+        if (res.ok)
+          toast.success(
+            res.where === "browser"
+              ? "تم تنزيل ملف PDF"
+              : `تم حفظ ${name} في ${whereLabel(res.where)}`,
+          );
+        else toast.error("تعذر حفظ ملف PDF على هذا الجهاز");
       } else {
         const shared = await sharePdf(blob, name, data.title);
-        toast.success(shared ? "تمت المشاركة" : "المشاركة غير مدعومة — تم حفظ الملف");
+        if (shared === "shared") toast.success("تمت المشاركة");
+        else if (shared === "cancelled") toast.info("تم إلغاء المشاركة");
+        else if (shared === "saved") toast.success(`لا يوجد تطبيق مشاركة — تم حفظ ${name}`);
+        else toast.error("تعذرت المشاركة على هذا الجهاز");
       }
     } catch {
       toast.error("تعذر إنشاء ملف PDF");

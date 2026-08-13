@@ -4,6 +4,7 @@
  * - في الويب/PWA: WebAuthn كما كان.
  */
 import { Capacitor } from "@capacitor/core";
+import { BiometricAuth } from "@aparajita/capacitor-biometric-auth";
 
 const CRED_KEY = "daftar-biometric-cred";
 const NATIVE_KEY = "daftari-biometric-native";
@@ -16,19 +17,31 @@ function isNative() {
   }
 }
 
-async function nativeApi() {
-  const mod = await import("@aparajita/capacitor-biometric-auth");
-  return mod.BiometricAuth;
+/** آخر سبب فشل — يُعرض للمستخدم بدل الصمت */
+let lastError = "";
+export function lastBiometricError() {
+  return lastError;
+}
+
+function nativeMessage(e: unknown) {
+  const raw = String((e as Error)?.message ?? e ?? "");
+  if (/cancel/i.test(raw)) return "تم إلغاء المصادقة";
+  if (/lockout|too many/i.test(raw)) return "تم قفل البصمة مؤقتًا — استخدم الرمز";
+  if (/no.*enrolled|not enrolled/i.test(raw)) return "لا توجد بصمة مسجّلة على الجهاز";
+  if (/not available|unavailable|no hardware/i.test(raw)) return "البصمة غير متاحة على هذا الجهاز";
+  return raw || "تعذّرت المصادقة بالبصمة";
 }
 
 /** توفر المصادقة البيومترية فعليًا على الجهاز (بصمة/وجه/…) */
 export async function biometricAvailable(): Promise<boolean> {
   if (isNative()) {
     try {
-      const api = await nativeApi();
-      const info = await api.checkBiometry();
-      return info.isAvailable || info.strongBiometryIsAvailable;
-    } catch {
+      const info = await BiometricAuth.checkBiometry();
+      if (info.isAvailable || info.strongBiometryIsAvailable) return true;
+      lastError = info.reason || "البصمة غير متاحة على هذا الجهاز";
+      return false;
+    } catch (e) {
+      lastError = nativeMessage(e);
       return false;
     }
   }
@@ -62,10 +75,8 @@ export function hasBiometricCredential() {
 
 export async function registerBiometric(userName: string): Promise<boolean> {
   if (isNative()) {
-    if (!(await biometricAvailable())) return false;
     try {
-      const api = await nativeApi();
-      await api.authenticate({
+      await BiometricAuth.authenticate({
         reason: "تأكيد هويتك لتفعيل البصمة",
         cancelTitle: "إلغاء",
         androidTitle: "دفتري",
@@ -74,7 +85,8 @@ export async function registerBiometric(userName: string): Promise<boolean> {
       });
       localStorage.setItem(NATIVE_KEY, "1");
       return true;
-    } catch {
+    } catch (e) {
+      lastError = nativeMessage(e);
       return false;
     }
   }
@@ -111,8 +123,7 @@ export async function registerBiometric(userName: string): Promise<boolean> {
 export async function verifyBiometric(): Promise<boolean> {
   if (isNative()) {
     try {
-      const api = await nativeApi();
-      await api.authenticate({
+      await BiometricAuth.authenticate({
         reason: "تأكيد هويتك لفتح دفتري",
         cancelTitle: "إلغاء",
         androidTitle: "دفتري",
@@ -121,13 +132,20 @@ export async function verifyBiometric(): Promise<boolean> {
       });
       localStorage.setItem(NATIVE_KEY, "1");
       return true;
-    } catch {
+    } catch (e) {
+      lastError = nativeMessage(e);
       return false;
     }
   }
-  if (!biometricSupported()) return false;
+  if (!biometricSupported()) {
+    lastError = "هذا المتصفح لا يدعم البصمة";
+    return false;
+  }
   const stored = localStorage.getItem(CRED_KEY);
-  if (!stored) return false;
+  if (!stored) {
+    lastError = "لا توجد بصمة مسجّلة في هذا التطبيق";
+    return false;
+  }
   try {
     const challenge = crypto.getRandomValues(new Uint8Array(32));
     const assertion = await navigator.credentials.get({
@@ -139,7 +157,8 @@ export async function verifyBiometric(): Promise<boolean> {
       },
     });
     return !!assertion;
-  } catch {
+  } catch (e) {
+    lastError = nativeMessage(e);
     return false;
   }
 }

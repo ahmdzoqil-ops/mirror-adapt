@@ -64,20 +64,96 @@ export function decodeShare(hash: string): SharePayload | null {
   }
 }
 
-/** أقصى طول آمن للرابط حتى لا يتعطل المتصفح */
-const MAX_HASH = 8000;
+/**
+ * قاعدة الرابط العام.
+ * داخل تطبيق أندرويد يكون origin هو localhost الداخلي، لذلك نستخدم دائمًا
+ * نطاق التطبيق العام حتى يعمل الرابط من أي جهاز أو متصفح.
+ */
+export const PUBLIC_BASE = "https://project--62e29d3a-3cac-458b-93c5-058e4179fa90.lovable.app";
 
-export function shareUrlFor(s: AppState, clientId: string) {
-  const payload = buildSharePayload(s, clientId);
-  if (!payload) return null;
-  const origin = typeof window === "undefined" ? "" : window.location.origin;
-  let encoded = encodeShare(payload);
-  // تقليص العمليات تدريجيًا (الأحدث أولًا) إذا كان الرابط طويلًا
-  let txns = payload.txns;
-  while (encoded.length > MAX_HASH && txns.length > 5) {
-    txns = txns.slice(-Math.max(5, Math.floor(txns.length / 2)));
-    encoded = encodeShare({ ...payload, txns });
+export function publicBase() {
+  if (typeof window === "undefined") return PUBLIC_BASE;
+  const o = window.location.origin;
+  if (/^https:\/\//.test(o) && !/localhost/.test(o)) return o;
+  return PUBLIC_BASE;
+}
+
+const LINKS_KEY = "daftari-share-links-v1";
+
+type LinkRec = { token: string; editKey: string };
+
+function readLinks(): Record<string, LinkRec> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(LINKS_KEY) || "{}") as Record<string, LinkRec>;
+  } catch {
+    return {};
   }
-  if (encoded.length > MAX_HASH) return null;
-  return `${origin}/share#${encoded}`;
+}
+
+function writeLinks(v: Record<string, LinkRec>) {
+  try {
+    localStorage.setItem(LINKS_KEY, JSON.stringify(v));
+  } catch {
+    /* تجاهل */
+  }
+}
+
+export function existingShareLink(clientId: string): string | null {
+  const rec = readLinks()[clientId];
+  return rec ? `${publicBase()}/share/${rec.token}` : null;
+}
+
+export type ShareLinkResult =
+  | { ok: true; url: string }
+  | { ok: false; reason: "no-client" | "offline" | "error" };
+
+/** إنشاء/تحديث رابط عام قصير للعميل عبر خادم التطبيق */
+export async function createShareLink(
+  s: AppState,
+  clientId: string,
+): Promise<ShareLinkResult> {
+  const payload = buildSharePayload(s, clientId);
+  if (!payload) return { ok: false, reason: "no-client" };
+  const prev = readLinks()[clientId];
+  try {
+    const res = await fetch(`${publicBase()}/api/public/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create",
+        payload,
+        ...(prev ? { token: prev.token, editKey: prev.editKey } : {}),
+      }),
+    });
+    if (!res.ok) return { ok: false, reason: "error" };
+    const data = (await res.json()) as LinkRec;
+    if (!data?.token) return { ok: false, reason: "error" };
+    const links = readLinks();
+    links[clientId] = { token: data.token, editKey: data.editKey };
+    writeLinks(links);
+    return { ok: true, url: `${publicBase()}/share/${data.token}` };
+  } catch {
+    return { ok: false, reason: "offline" };
+  }
+}
+
+/** تعطيل رابط المشاركة الحالي للعميل */
+export async function revokeShareLink(clientId: string): Promise<boolean> {
+  const rec = readLinks()[clientId];
+  if (!rec) return true;
+  try {
+    const res = await fetch(`${publicBase()}/api/public/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "revoke", token: rec.token, editKey: rec.editKey }),
+    });
+    if (!res.ok) return false;
+    const links = readLinks();
+    delete links[clientId];
+    writeLinks(links);
+    return true;
+  } catch {
+    return false;
+  }
 }

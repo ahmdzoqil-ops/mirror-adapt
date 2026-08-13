@@ -1,5 +1,6 @@
 import type { ReportData } from "@/lib/report";
 import { reportHtml } from "@/lib/report";
+import { saveFile, shareFile, stamp, type SaveResult, type ShareResult } from "@/lib/native-file";
 
 const A4 = { w: 595.28, h: 841.89 }; // نقاط PDF
 
@@ -45,27 +46,14 @@ export async function reportToPdfBlob(data: ReportData): Promise<Blob> {
   }
 }
 
-export function pdfFileName(data: ReportData) {
-  const who = data.clientName ? data.clientName.replace(/\s+/g, "-") : "تقرير-عام";
-  return `${who}-${new Date().toISOString().slice(0, 10)}.pdf`;
+export function pdfFileName(_data: ReportData) {
+  return `دفتري_تقرير_${stamp()}.pdf`;
 }
 
-export function savePdf(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
+export function savePdf(blob: Blob, name: string): Promise<SaveResult> {
+  return saveFile(blob, name);
 }
 
-export async function sharePdf(blob: Blob, name: string, title: string) {
-  const file = new File([blob], name, { type: "application/pdf" });
-  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
-  if (nav.canShare?.({ files: [file] }) && navigator.share) {
-    await navigator.share({ files: [file], title });
-    return true;
-  }
-  savePdf(blob, name);
-  return false;
+export function sharePdf(blob: Blob, name: string, title: string): Promise<ShareResult> {
+  return shareFile(blob, name, title);
 }

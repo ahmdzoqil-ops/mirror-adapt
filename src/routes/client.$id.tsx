@@ -48,7 +48,8 @@ import { VerifyDialog } from "@/components/AppLock";
 import { ReportDialog } from "@/components/ReportDialog";
 import { ImageViewer } from "@/components/ImageViewer";
 import { pickContactDetailed } from "@/lib/contacts";
-import { shareUrlFor } from "@/lib/share";
+import { createShareLink, existingShareLink, revokeShareLink } from "@/lib/share";
+import { shareText } from "@/lib/native-file";
 import { buildClientReport, type ReportData } from "@/lib/report";
 import { Money } from "@/components/Riyal";
 import {
@@ -140,27 +141,32 @@ function ClientPage() {
   }
 
   async function shareAccount() {
-    const url = shareUrlFor(getState(), id);
-    if (!url) {
-      toast.error("تعذر إنشاء رابط المتابعة");
+    const t = toast.loading("جارٍ تجهيز رابط المتابعة…");
+    const res = await createShareLink(getState(), id);
+    toast.dismiss(t);
+    if (!res.ok) {
+      toast.error(
+        res.reason === "offline"
+          ? "تحتاج إلى اتصال بالإنترنت لإنشاء رابط المتابعة"
+          : "تعذر إنشاء رابط المتابعة",
+      );
       return;
     }
     const text = `متابعة حسابك لدى ${getState().settings.shopName || "دفتري"}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: text, text, url });
-        toast.success("تمت مشاركة الرابط");
-        return;
-      } catch (err) {
-        if ((err as Error)?.name === "AbortError") return;
-      }
-    }
+    const shared = await shareText(text, `${text}\n${res.url}`, res.url);
+    if (shared === "shared") return;
+    if (shared === "cancelled") return;
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(res.url);
       toast.success("تم نسخ رابط المتابعة");
     } catch {
-      toast.error("تعذر نسخ الرابط على هذا الجهاز");
+      toast.message(res.url);
     }
+  }
+
+  async function cancelShare() {
+    const ok = await revokeShareLink(id);
+    toast[ok ? "success" : "error"](ok ? "تم إلغاء رابط المتابعة" : "تعذر إلغاء الرابط");
   }
 
 
@@ -190,6 +196,11 @@ function ClientPage() {
             <DropdownMenuItem onSelect={() => void shareAccount()}>
               <Share2 className="size-4" /> مشاركة الرابط
             </DropdownMenuItem>
+            {existingShareLink(id) ? (
+              <DropdownMenuItem onSelect={() => void cancelShare()}>
+                <Share2 className="size-4" /> إلغاء رابط المتابعة
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => runProtected("reset")}>
               <Eraser className="size-4" /> تصفير الحساب

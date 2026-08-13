@@ -58,6 +58,7 @@ import {
 import {
   biometricSupported,
   biometricAvailable,
+  lastBiometricError,
   clearBiometric,
   hasBiometricCredential,
   registerBiometric,
@@ -78,6 +79,7 @@ import {
   restoreBackup,
   subscribeBackups,
 } from "@/lib/backup";
+import { saveFile, whereLabel } from "@/lib/native-file";
 
 const DEV = {
   name: "أحمد الصعفاني",
@@ -101,16 +103,18 @@ export function SettingsSection() {
     void refreshNotificationPermission().then(setPerm);
   }, []);
 
-  function exportBackup() {
+  async function exportBackup() {
     const data = JSON.stringify(getState(), null, 2);
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = backupFileName();
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("تم إنشاء النسخة الاحتياطية");
+    const res = await saveFile(
+      new Blob([data], { type: "application/json" }),
+      backupFileName(),
+      data,
+    );
+    if (res.ok)
+      toast.success(
+        res.where === "browser" ? "تم تنزيل النسخة" : `تم حفظ النسخة في ${whereLabel(res.where)}`,
+      );
+    else toast.error("تعذر حفظ الملف على هذا الجهاز");
   }
 
   async function importBackup(file: File) {
@@ -132,15 +136,15 @@ export function SettingsSection() {
       return;
     }
     if (!biometricSupported() || !(await biometricAvailable())) {
-      toast.error("لا توجد بصمة مسجّلة أو مدعومة على هذا الجهاز");
+      toast.error(lastBiometricError() || "لا توجد بصمة مسجّلة أو مدعومة على هذا الجهاز");
       return;
     }
-    const ok = hasBiometricCredential() || (await registerBiometric(settings.userName));
+    const ok = await registerBiometric(settings.userName);
     if (ok) {
       updateSettings({ biometric: true });
       toast.success("تم تفعيل البصمة");
     } else {
-      toast.error("تعذر تفعيل البصمة");
+      toast.error(lastBiometricError() || "تعذر تفعيل البصمة");
     }
   }
 
@@ -351,7 +355,7 @@ export function SettingsSection() {
           <RotateCcw className="size-4" /> النسخ المحفوظة
         </Button>
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" onClick={exportBackup}>
+          <Button variant="secondary" onClick={() => void exportBackup()}>
             <Download className="size-4" /> تصدير ملف
           </Button>
           <Button variant="secondary" onClick={() => fileRef.current?.click()}>
@@ -802,7 +806,15 @@ function BackupManager({ mode = "summary" }: { mode?: "summary" | "list" }) {
               </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
-                  if (!downloadBackup(b.id)) toast.error("تعذر تصدير النسخة");
+                  void downloadBackup(b.id).then((res) => {
+                    if (res.ok)
+                      toast.success(
+                        res.where === "browser"
+                          ? "تم تنزيل النسخة"
+                          : `تم حفظ النسخة في ${whereLabel(res.where)}`,
+                      );
+                    else toast.error("تعذر تصدير النسخة على هذا الجهاز");
+                  });
                 }}
               >
                 <Download className="size-4" /> تصدير النسخة

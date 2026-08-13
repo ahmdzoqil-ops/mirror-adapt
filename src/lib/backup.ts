@@ -1,4 +1,5 @@
 import { getState, replaceState, type AppState } from "@/lib/store";
+import { saveFile, stamp, type SaveResult } from "@/lib/native-file";
 
 const KEY = "daftar-backups-v1";
 const MAX_AUTO = 7;
@@ -139,30 +140,20 @@ export function restoreBackup(id: string) {
   }
 }
 
-export function downloadBackup(id: string) {
+/** تصدير نسخة محفوظة إلى ملف يمكن للمستخدم إيجاده على الهاتف */
+export async function downloadBackup(id: string): Promise<SaveResult> {
   const rec = read().find((b) => b.id === id);
-  if (!rec) return false;
-  try {
-    const blob = new Blob([rec.data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = backupFileName(rec.at);
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 4000);
-    return true;
-  } catch {
-    return false;
-  }
+  if (!rec) return { ok: false, error: "not-found" };
+  return saveFile(
+    new Blob([rec.data], { type: "application/json" }),
+    backupFileName(rec.at),
+    rec.data,
+  );
 }
 
 /** اسم ملف واضح وسهل البحث داخل الهاتف */
 export function backupFileName(iso: string = new Date().toISOString()) {
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, "0");
-  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-  const time = `${p(d.getHours())}-${p(d.getMinutes())}`;
-  return `دفتري_نسخة_احتياطية_${date}_${time}.json`;
+  return `دفتري_نسخة_احتياطية_${stamp(new Date(iso))}.json`;
 }
 
 
