@@ -18,7 +18,8 @@ import { DebtorsSection } from "@/components/sections/DebtorsSection";
 import { PaymentsSection } from "@/components/sections/PaymentsSection";
 import { ReportsSection } from "@/components/sections/ReportsSection";
 import { SettingsSection } from "@/components/sections/SettingsSection";
-import { loadState } from "@/lib/store";
+import { getState, loadState } from "@/lib/store";
+import { startShareSync } from "@/lib/share";
 import { startReminderLoop } from "@/lib/notify";
 import { startBackupLoop } from "@/lib/backup";
 
@@ -77,9 +78,11 @@ function Index() {
     setReady(true);
     const stopReminders = startReminderLoop();
     const stopBackups = startBackupLoop();
+    const stopShareSync = startShareSync(getState);
     return () => {
       stopReminders();
       stopBackups();
+      stopShareSync();
     };
   }, []);
 
