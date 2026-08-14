@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useBackHandler } from "@/lib/back-button";
 import {
   Bell,
   Camera,
