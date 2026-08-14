@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   CalendarDays,
@@ -18,11 +18,16 @@ import { DebtorsSection } from "@/components/sections/DebtorsSection";
 import { PaymentsSection } from "@/components/sections/PaymentsSection";
 import { ReportsSection } from "@/components/sections/ReportsSection";
 import { SettingsSection } from "@/components/sections/SettingsSection";
-import { loadState } from "@/lib/store";
+import { getState, loadState } from "@/lib/store";
+import { startShareSync } from "@/lib/share";
 import { startReminderLoop } from "@/lib/notify";
 import { startBackupLoop } from "@/lib/backup";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): { tab?: TabId } => {
+    const t = search["tab"];
+    return typeof t === "string" && TAB_IDS.includes(t as TabId) ? { tab: t as TabId } : {};
+  },
   head: () => ({
     meta: [
       { title: "دفتري — إدارة الديون والسداد بدون إنترنت" },
@@ -52,12 +57,17 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+const TAB_IDS: string[] = TABS.map((t) => t.id);
 
 /** شاشة البدء تُعرض مرة واحدة فقط عند تشغيل التطبيق (لا تتكرر عند الرجوع) */
 let splashShown = false;
 
 function Index() {
-  const [tab, setTab] = useState<TabId>("daily");
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const tab: TabId = search.tab ?? "daily";
+  const setTab = (id: TabId) =>
+    void navigate({ to: "/", search: { tab: id }, replace: true });
   const [ready, setReady] = useState(false);
   const [splash, setSplash] = useState(!splashShown);
   const [fabOpen, setFabOpen] = useState(false);
@@ -68,9 +78,11 @@ function Index() {
     setReady(true);
     const stopReminders = startReminderLoop();
     const stopBackups = startBackupLoop();
+    const stopShareSync = startShareSync(getState);
     return () => {
       stopReminders();
       stopBackups();
+      stopShareSync();
     };
   }, []);
 

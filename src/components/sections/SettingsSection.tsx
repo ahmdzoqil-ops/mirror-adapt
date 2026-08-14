@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useBackHandler } from "@/lib/back-button";
 import {
   Bell,
   Camera,
@@ -102,6 +103,10 @@ export function SettingsSection() {
   useEffect(() => {
     void refreshNotificationPermission().then(setPerm);
   }, []);
+
+  // زر Android الأصلي يرجع من الشاشة الفرعية إلى الإعدادات (نفس زر الرجوع الداخلي)
+  useBackHandler(showTrash, useCallback(() => setShowTrash(false), []));
+  useBackHandler(showBackups, useCallback(() => setShowBackups(false), []));
 
   async function exportBackup() {
     const data = JSON.stringify(getState(), null, 2);
