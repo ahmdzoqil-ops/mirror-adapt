@@ -102,8 +102,9 @@ export const Route = createFileRoute("/api/public/share")({
           if (data) return json({ token: parsed.data.token, editKey: parsed.data.editKey });
         }
 
-        const token = newToken(8);
-        const editKey = newToken(24);
+        // معرّف المشاركة يُنشأ محليًا في التطبيق؛ نقبله هنا عند توفره
+        const token = parsed.data.token ?? newToken(8);
+        const editKey = parsed.data.editKey ?? newToken(24);
         const { error } = await supabaseAdmin
           .from("shares")
           .insert({ token, edit_key: editKey, payload });
