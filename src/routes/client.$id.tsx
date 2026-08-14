@@ -49,6 +49,7 @@ import { ReportDialog } from "@/components/ReportDialog";
 import { ImageViewer } from "@/components/ImageViewer";
 import { pickContactDetailed } from "@/lib/contacts";
 import { createShareLink, existingShareLink, revokeShareLink } from "@/lib/share";
+import { appBack } from "@/lib/back-button";
 import { shareText } from "@/lib/native-file";
 import { buildClientReport, type ReportData } from "@/lib/report";
 import { Money } from "@/components/Riyal";
@@ -141,17 +142,13 @@ function ClientPage() {
   }
 
   async function shareAccount() {
-    const t = toast.loading("جارٍ تجهيز رابط المتابعة…");
+    // الرابط يُنشأ محليًا وفورًا، والمزامنة مع الخادم تتم في الخلفية
     const res = await createShareLink(getState(), id);
-    toast.dismiss(t);
     if (!res.ok) {
-      toast.error(
-        res.reason === "offline"
-          ? "تحتاج إلى اتصال بالإنترنت لإنشاء رابط المتابعة"
-          : "تعذر إنشاء رابط المتابعة",
-      );
+      toast.error("تعذر إنشاء رابط المتابعة");
       return;
     }
+    if (!res.synced) toast.message("سيتم تحديث بيانات الرابط عند توفر الإنترنت");
     const text = `متابعة حسابك لدى ${getState().settings.shopName || "دفتري"}`;
     const shared = await shareText(text, `${text}\n${res.url}`, res.url);
     if (shared === "shared") return;
@@ -175,9 +172,16 @@ function ClientPage() {
   return (
     <div className="min-h-screen bg-background pb-10">
       <header className="sticky top-0 z-20 flex items-center gap-2 border-b border-border bg-background/90 px-3 py-3 backdrop-blur">
-        <Link to="/" className="rounded-lg p-2 hover:bg-secondary" aria-label="رجوع">
+        <button
+          type="button"
+          onClick={() => {
+            if (!appBack()) void navigate({ to: "/", search: { tab: "debtors" } });
+          }}
+          className="rounded-lg p-2 hover:bg-secondary"
+          aria-label="رجوع"
+        >
           <ArrowRight className="size-5" />
-        </Link>
+        </button>
         <h1 className="flex-1 truncate text-lg font-extrabold">{client.name}</h1>
         <DropdownMenu>
           <DropdownMenuTrigger
