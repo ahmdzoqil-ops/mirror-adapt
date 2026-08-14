@@ -84,26 +84,31 @@ async function contactsPermission(): Promise<"granted" | "denied" | "prompt" | "
  * ولا نعرض رسالة الرفض إلا إذا فشلت القراءة فعلًا بسبب الإذن.
  */
 async function pickNative(): Promise<PickResult> {
+  // 1) الحالة الحالية للإذن من Native مباشرة
   let perm = await contactsPermission();
+
+  // 2) الطلب عند الحاجة، ثم إعادة الفحص الفعلي (لا نعتمد على نتيجة الطلب وحدها)
   if (perm !== "granted") {
     try {
-      const asked = await Contacts.requestPermissions();
-      perm = (asked?.contacts as "granted" | "denied" | "prompt") ?? perm;
+      await Contacts.requestPermissions();
     } catch {
-      /* نكمل ونجرّب المنتقي على أي حال */
+      /* نكمل ونعيد الفحص */
     }
-    // إعادة الفحص بعد الطلب — بعض إصدارات أندرويد تعيد قيمة قديمة في نتيجة الطلب
-    if (perm !== "granted") perm = await contactsPermission();
+    perm = await contactsPermission();
   }
+
+  // 3) لا نعرض رسالة الرفض إلا إذا كانت الحالة الفعلية مرفوضة
+  if (perm === "denied") return { ok: false, reason: "denied" };
 
   try {
     const res = await Contacts.pickContact({ projection: { name: true, phones: true } });
     const c = res?.contact as NativeContact | undefined;
     if (!c) return { ok: false, reason: "cancelled" };
 
-    const mapped = mapContact(c);
-    // بعض الأجهزة لا تعيد الأرقام من المنتقي — نقرأها بالمعرّف عند توفر الإذن
-    if (!mapped.phone && perm === "granted") {
+    let mapped = mapContact(c);
+
+    // بعض الأجهزة لا تعيد الأرقام من المنتقي — نقرأها بالمعرّف
+    if (!mapped.phone) {
       const id = (res.contact as unknown as { contactId?: string })?.contactId;
       if (id) {
         try {
@@ -112,17 +117,23 @@ async function pickNative(): Promise<PickResult> {
             projection: { name: true, phones: true },
           });
           const m2 = mapContact(full?.contact as NativeContact);
-          if (m2.phone || m2.name) return { ok: true, contact: { ...mapped, ...m2 } };
+          mapped = { name: m2.name || mapped.name, phone: m2.phone || mapped.phone };
         } catch {
           /* نتجاهل ونعيد ما توفر */
         }
       }
     }
+
+    if (!mapped.name && !mapped.phone) return { ok: false, reason: "error" };
     return { ok: true, contact: mapped };
   } catch (e) {
     const msg = String((e as Error)?.message ?? e);
     if (/cancel|abort|dismiss|no result|user/i.test(msg)) return { ok: false, reason: "cancelled" };
-    if (/permission|denied|not granted/i.test(msg)) return { ok: false, reason: "denied" };
+    if (/permission|denied|not granted/i.test(msg)) {
+      // إعادة فحص فعلي قبل الحكم بالرفض
+      const again = await contactsPermission();
+      return { ok: false, reason: again === "granted" ? "error" : "denied" };
+    }
     return { ok: false, reason: "error" };
   }
 }
