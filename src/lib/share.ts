@@ -79,6 +79,7 @@ export function publicBase() {
 }
 
 const LINKS_KEY = "daftari-share-links-v1";
+const PENDING_KEY = "daftari-share-pending-v1";
 
 type LinkRec = { token: string; editKey: string };
 
@@ -99,43 +100,108 @@ function writeLinks(v: Record<string, LinkRec>) {
   }
 }
 
+function readPending(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+function writePending(v: string[]) {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(Array.from(new Set(v))));
+  } catch {
+    /* تجاهل */
+  }
+}
+
+/** معرّف مشاركة آمن يُولَّد محليًا بدون إنترنت */
+function randomId(len: number) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+/** يعيد معرّف المشاركة المحلي للعميل، وينشئه فورًا إن لم يوجد */
+export function ensureShareId(clientId: string): LinkRec {
+  const links = readLinks();
+  const cur = links[clientId];
+  if (cur) return cur;
+  const rec: LinkRec = { token: randomId(8), editKey: randomId(24) };
+  links[clientId] = rec;
+  writeLinks(links);
+  return rec;
+}
+
+export function shareUrlFor(clientId: string): string {
+  return `${publicBase()}/share/${ensureShareId(clientId).token}`;
+}
+
 export function existingShareLink(clientId: string): string | null {
   const rec = readLinks()[clientId];
   return rec ? `${publicBase()}/share/${rec.token}` : null;
 }
 
-export type ShareLinkResult =
-  | { ok: true; url: string }
-  | { ok: false; reason: "no-client" | "offline" | "error" };
+async function pushShare(rec: LinkRec, payload: SharePayload): Promise<boolean> {
+  try {
+    const res = await fetch(`${publicBase()}/api/public/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "create", payload, token: rec.token, editKey: rec.editKey }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
-/** إنشاء/تحديث رابط عام قصير للعميل عبر خادم التطبيق */
+export type ShareLinkResult =
+  | { ok: true; url: string; synced: boolean }
+  | { ok: false; reason: "no-client" };
+
+/**
+ * إنشاء رابط المتابعة: محلي وفوري ولا يعتمد على الإنترنت.
+ * المزامنة مع الخادم تحدث بعد ذلك، وتُعاد المحاولة عند عودة الاتصال.
+ */
 export async function createShareLink(
   s: AppState,
   clientId: string,
 ): Promise<ShareLinkResult> {
   const payload = buildSharePayload(s, clientId);
   if (!payload) return { ok: false, reason: "no-client" };
-  const prev = readLinks()[clientId];
-  try {
-    const res = await fetch(`${publicBase()}/api/public/share`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "create",
-        payload,
-        ...(prev ? { token: prev.token, editKey: prev.editKey } : {}),
-      }),
-    });
-    if (!res.ok) return { ok: false, reason: "error" };
-    const data = (await res.json()) as LinkRec;
-    if (!data?.token) return { ok: false, reason: "error" };
-    const links = readLinks();
-    links[clientId] = { token: data.token, editKey: data.editKey };
-    writeLinks(links);
-    return { ok: true, url: `${publicBase()}/share/${data.token}` };
-  } catch {
-    return { ok: false, reason: "offline" };
+  const rec = ensureShareId(clientId);
+  const url = `${publicBase()}/share/${rec.token}`;
+  const synced = await pushShare(rec, payload);
+  if (!synced) writePending([...readPending(), clientId]);
+  else writePending(readPending().filter((c) => c !== clientId));
+  return { ok: true, url, synced };
+}
+
+/** مزامنة المشاركات المعلّقة عند توفر الإنترنت */
+export async function syncPendingShares(getAppState: () => AppState) {
+  const pending = readPending();
+  if (!pending.length) return;
+  const links = readLinks();
+  const still: string[] = [];
+  for (const clientId of pending) {
+    const rec = links[clientId];
+    const payload = rec ? buildSharePayload(getAppState(), clientId) : null;
+    if (!rec || !payload) continue;
+    const ok = await pushShare(rec, payload);
+    if (!ok) still.push(clientId);
   }
+  writePending(still);
+}
+
+/** يبدأ مراقبة الاتصال لمزامنة الروابط المعلّقة */
+export function startShareSync(getAppState: () => AppState) {
+  if (typeof window === "undefined") return () => {};
+  const run = () => void syncPendingShares(getAppState);
+  run();
+  window.addEventListener("online", run);
+  return () => window.removeEventListener("online", run);
 }
 
 /** تعطيل رابط المشاركة الحالي للعميل */
@@ -152,6 +218,7 @@ export async function revokeShareLink(clientId: string): Promise<boolean> {
     const links = readLinks();
     delete links[clientId];
     writeLinks(links);
+    writePending(readPending().filter((c) => c !== clientId));
     return true;
   } catch {
     return false;
