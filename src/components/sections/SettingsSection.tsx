@@ -103,6 +103,10 @@ export function SettingsSection() {
     void refreshNotificationPermission().then(setPerm);
   }, []);
 
+  // زر Android الأصلي يرجع من الشاشة الفرعية إلى الإعدادات (نفس زر الرجوع الداخلي)
+  useBackHandler(showTrash, useCallback(() => setShowTrash(false), []));
+  useBackHandler(showBackups, useCallback(() => setShowBackups(false), []));
+
   async function exportBackup() {
     const data = JSON.stringify(getState(), null, 2);
     const res = await saveFile(
