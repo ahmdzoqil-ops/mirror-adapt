@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   CalendarDays,
@@ -23,6 +23,10 @@ import { startReminderLoop } from "@/lib/notify";
 import { startBackupLoop } from "@/lib/backup";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): { tab?: TabId } => {
+    const t = search["tab"];
+    return typeof t === "string" && TAB_IDS.includes(t as TabId) ? { tab: t as TabId } : {};
+  },
   head: () => ({
     meta: [
       { title: "دفتري — إدارة الديون والسداد بدون إنترنت" },
@@ -52,12 +56,17 @@ const TABS = [
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
+const TAB_IDS: string[] = TABS.map((t) => t.id);
 
 /** شاشة البدء تُعرض مرة واحدة فقط عند تشغيل التطبيق (لا تتكرر عند الرجوع) */
 let splashShown = false;
 
 function Index() {
-  const [tab, setTab] = useState<TabId>("daily");
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const tab: TabId = search.tab ?? "daily";
+  const setTab = (id: TabId) =>
+    void navigate({ to: "/", search: { tab: id }, replace: true });
   const [ready, setReady] = useState(false);
   const [splash, setSplash] = useState(!splashShown);
   const [fabOpen, setFabOpen] = useState(false);
